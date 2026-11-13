@@ -85,3 +85,5 @@ Feature ideas and bug reports are welcome through [Issues](https://github.com/Tz
 MIT — see [LICENSE](LICENSE).
 
 Use the trash button beside a recent recording to remove the saved recording and its entry immediately. Deleted recordings go to macOS Trash for recovery; separately exported copies are unaffected.
+
+The Calendar tab includes a full month grid, month/year heading, weekday labels, highlighted today, previous/next month controls, and a complete selected date. Upcoming events remain below the grid. The month view works without calendar access.

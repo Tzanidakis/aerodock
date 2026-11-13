@@ -491,7 +491,10 @@ struct IslandView: View {
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
     }
     var calendar: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 12) {
+            MonthCalendar()
+            Divider()
             HStack {
                 Text("UP NEXT").font(.system(size: 10, weight: .bold)).tracking(2).foregroundStyle(mint)
                 Spacer()
@@ -512,6 +515,7 @@ struct IslandView: View {
             }
             if !model.calendarConnected { Button("Connect Calendar", action: model.connectCalendar).buttonStyle(MintButtonStyle()) }
         }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
+        }.frame(maxHeight: .infinity)
     }
 }
 
