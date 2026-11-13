@@ -221,7 +221,7 @@ final class IslandModel: ObservableObject {
     @Published var title = "Your music, a little closer."
     @Published var artist = "Choose a music app above"
     @Published var isVisible = false
-    @Published var lyrics: String?
+    @Published var lyrics: LyricsRecord?
     private let lyricsLoader = LyricsLoader()
     @Published var artwork: CoverArt?
     @Published var playing = false
@@ -586,9 +586,8 @@ struct IslandView: View {
                     Spacer()
                     Link("LRCLIB", destination: URL(string: "https://lrclib.net")!).font(.system(size: 10)).foregroundStyle(.secondary)
                 }
-                Text(lyrics).font(.system(size: 14, weight: .medium)).lineSpacing(6)
-                    .foregroundStyle(.white.opacity(0.85)).frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                SongLyricsView(record: lyrics, position: model.playbackPosition)
+                    .id(model.player.rawValue + model.title + model.artist)
             }
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
     }

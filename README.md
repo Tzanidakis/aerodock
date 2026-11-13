@@ -119,3 +119,7 @@ The expanded Music page displays lyrics below playback controls only when LRCLIB
 ### 0.7.4
 
 Lyrics lookup now falls back to catalog search when an exact match is missing. It removes remaster labels, requires a matching title and artist, and chooses the nearest duration within 15 seconds. Live-version labels are preserved. Temporary failures retry after a delay; rate-limit responses respect the service's retry interval.
+
+### 0.7.5
+
+Lyrics with timestamps highlight the current line and scroll with playback, including after seeking backward or forward. Pausing keeps the current line in place. Plain lyrics remain available when the provider has no timestamps. Timing comes from the matched catalog recording and may vary for remasters or alternate editions.

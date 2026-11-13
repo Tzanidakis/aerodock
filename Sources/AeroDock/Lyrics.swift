@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct LyricsRecord: Decodable {
     var trackName: String? = nil
@@ -38,7 +39,7 @@ final class LyricsLoader {
     private var retryAfter = Date.distantPast
     private var nextAttempt = Date.distantFuture
     func reset() { task?.cancel(); task = nil; key = "" }
-    func load(title: String, artist: String, duration: Double, completion: @escaping (String?) -> Void) {
+    func load(title: String, artist: String, duration: Double, completion: @escaping (LyricsRecord?) -> Void) {
         let next = "\(title)|\(artist)|\(Int(duration))"
         guard Date() >= retryAfter, next != key || Date() >= nextAttempt else { return }
         nextAttempt = .distantFuture
@@ -48,7 +49,7 @@ final class LyricsLoader {
         url.queryItems = [URLQueryItem(name: "track_name", value: title), URLQueryItem(name: "artist_name", value: artist), URLQueryItem(name: "duration", value: String(Int(duration.rounded())))]
         var request = URLRequest(url: url.url!)
         request.timeoutInterval = 10
-        request.setValue("AeroDock/0.7.4 (https://github.com/Tzanidakis/aerodock)", forHTTPHeaderField: "User-Agent")
+        request.setValue("AeroDock/0.7.5 (https://github.com/Tzanidakis/aerodock)", forHTTPHeaderField: "User-Agent")
         task = Task {
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
@@ -61,7 +62,7 @@ final class LyricsLoader {
                 if http.statusCode == 200, data.count <= 1_000_000 {
                     let record = try JSONDecoder().decode(LyricsRecord.self, from: data)
                     if record.instrumental { return }
-                    if let text = record.text { completion(text); return }
+                    if record.text != nil { completion(record); return }
                 } else if http.statusCode != 404 {
                     nextAttempt = Date().addingTimeInterval(60); return
                 }
@@ -81,9 +82,78 @@ final class LyricsLoader {
                     nextAttempt = Date().addingTimeInterval(60); return
                 }
                 let records = try JSONDecoder().decode([LyricsRecord].self, from: matches)
-                completion(LyricsRecord.bestMatch(records, title: title, artist: artist, duration: duration)?.text)
+                completion(LyricsRecord.bestMatch(records, title: title, artist: artist, duration: duration))
             } catch {
                 if !Task.isCancelled, key == next { nextAttempt = Date().addingTimeInterval(60) }
+            }
+        }
+    }
+}
+
+struct TimedLyric: Identifiable, Equatable {
+    let id: Int
+    let time: Double
+    let text: String
+    static func parse(_ source: String?) -> [TimedLyric] {
+        guard let source,
+              let regex = try? NSRegularExpression(pattern: #"\[(\d+):(\d{2})(?:\.(\d{1,3}))?\]"#) else { return [] }
+        var entries: [(Double, String)] = []
+        for line in source.components(separatedBy: .newlines) {
+            let ns = line as NSString
+            let matches = regex.matches(in: line, range: NSRange(location: 0, length: ns.length))
+            guard let last = matches.last else { continue }
+            let text = ns.substring(from: NSMaxRange(last.range)).trimmingCharacters(in: .whitespaces)
+            for match in matches {
+                let minutes = Double(ns.substring(with: match.range(at: 1))) ?? 0
+                let seconds = Double(ns.substring(with: match.range(at: 2))) ?? 0
+                guard seconds < 60 else { continue }
+                let fractionRange = match.range(at: 3)
+                let fraction = fractionRange.location == NSNotFound ? 0 : Double("0." + ns.substring(with: fractionRange)) ?? 0
+                entries.append((minutes * 60 + seconds + fraction, text))
+            }
+        }
+        return entries.enumerated().sorted { a, b in
+            a.element.0 == b.element.0 ? a.offset < b.offset : a.element.0 < b.element.0
+        }.enumerated().map { TimedLyric(id: $0.offset, time: $0.element.element.0, text: $0.element.element.1) }
+    }
+    static func current(in lines: [TimedLyric], at position: Double) -> Int? {
+        lines.last(where: { $0.time <= position })?.id
+    }
+}
+
+struct SongLyricsView: View {
+    let record: LyricsRecord
+    let position: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var lines: [TimedLyric] { TimedLyric.parse(record.syncedLyrics) }
+    var body: some View {
+        let timed = lines
+        let current = TimedLyric.current(in: timed, at: position)
+        if timed.isEmpty {
+            Text(record.text ?? "").font(.system(size: 14, weight: .medium)).lineSpacing(6)
+                .foregroundStyle(.white.opacity(0.85)).frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        ForEach(timed) { line in
+                            Text(line.text.isEmpty ? "♪" : line.text)
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                                .foregroundStyle(line.id == current ? .white : .white.opacity(0.32))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .id(line.id)
+                                .accessibilityAddTraits(line.id == current ? .isSelected : [])
+                        }
+                    }.padding(.vertical, 50).padding(.horizontal, 4)
+                }.frame(height: 160)
+                    .onAppear { proxy.scrollTo(current ?? timed.first?.id, anchor: .center) }
+                    .onChange(of: current) { _, value in
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                            proxy.scrollTo(value ?? timed.first?.id, anchor: .center)
+                        }
+                    }
             }
         }
     }

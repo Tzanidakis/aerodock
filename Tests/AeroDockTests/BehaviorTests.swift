@@ -10,6 +10,7 @@ struct BehaviorTests {
         let tests = BehaviorTests()
         tests.testFocusStopRestoresSelectedDuration()
         tests.testCustomFocusDuration()
+        tests.testTimedLyricsFollowPlayback()
         tests.testLyricsAvailability()
         tests.testEarbudBatteryParsing()
         tests.testHoverMustDwellAndLeavingHides()
@@ -26,7 +27,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("18 behavior, artwork, presentation and recording tests passed")
+        print("19 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -62,6 +63,18 @@ struct BehaviorTests {
         XCTAssertEqual(clock.remaining, 60)
         clock.reset(minutes: 9999)
         XCTAssertEqual(clock.remaining, 1439 * 60)
+    }
+    func testTimedLyricsFollowPlayback() {
+        let lines = TimedLyric.parse("[ar:Example]\n[00:10.50]First\n[00:20.000][01:00.25]Repeated\n[00:30.00]\n[00:99]Invalid")
+        XCTAssertEqual(lines.count, 4)
+        XCTAssertTrue(TimedLyric.current(in: lines, at: 0) == nil)
+        XCTAssertEqual(TimedLyric.current(in: lines, at: 10.5), 0)
+        XCTAssertEqual(TimedLyric.current(in: lines, at: 25), 1)
+        XCTAssertEqual(TimedLyric.current(in: lines, at: 35), 2)
+        XCTAssertEqual(TimedLyric.current(in: lines, at: 61), 3)
+        XCTAssertEqual(TimedLyric.current(in: lines, at: 11), 0)
+        XCTAssertEqual(lines[3].time, 60.25)
+        XCTAssertTrue(TimedLyric.parse(nil).isEmpty)
     }
     func testLyricsAvailability() {
         let match = LyricsRecord(trackName: "Belladonna", artistName: "UFO", duration: 265, instrumental: false, plainLyrics: "Example", syncedLyrics: nil)
