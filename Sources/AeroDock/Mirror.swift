@@ -50,7 +50,7 @@ final class MirrorCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     }
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         let time = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        guard CMTimeGetSeconds(time - lastSample) >= 1,
+        guard CMTimeGetSeconds(time - lastSample) >= 0.2,
               let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         lastSample = time
         CVPixelBufferLockBaseAddress(buffer, .readOnly)
@@ -62,7 +62,7 @@ final class MirrorCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         let row = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
         let pixels = base.assumingMemoryBound(to: UInt8.self)
         var total = 0, count = 0
-        // Sample the central face area only, once a second. Frames are never saved.
+        // Sample the central face area five times a second. Frames are never saved.
         for y in stride(from: height / 4, to: height * 3 / 4, by: 16) {
             for x in stride(from: width / 4, to: width * 3 / 4, by: 16) {
                 total += Int(pixels[y * row + x]); count += 1

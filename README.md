@@ -135,3 +135,7 @@ Earbud connection and disconnection now use native Bluetooth notifications inste
 - Rounded system numerals, circular playback controls, and refined recording controls continue the macOS styling.
 - The mirror uses the Mac's built-in ambient-light sensor when available. Below 30 lux for two samples turns the light on; above 80 lux for five samples turns it off. Camera brightness remains a fallback. The optional sensor interface is private and may change in macOS updates; it was verified on the development Mac. Sensor reading occurs only while the mirror camera is running.
 - Mirror illumination is now a broad white panel around a 120-point circular preview, with a larger expanded window to fit it. The lightbulb overrides illumination; Auto restores sensor control. Screen brightness is not modified.
+
+### 0.8.1
+
+Closing the mirror restores the dock's previous compact or expanded size. Music controls no longer include the redundant stop/pause square. Mirror lighting samples every 200 ms, switching on after two dark samples (about 0.4 seconds) and off after five bright samples (about one second), subject to sensor and camera timing. Focus actions now use icons with accessible names and tooltips; presets show only their minute values.

@@ -188,6 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class IslandModel: ObservableObject {
+    private var expandedBeforeMirror = false
     @Published var mirrorVisible = false
     @Published var earbudDevices: [EarbudDevice] = []
     @Published var earbudNotice: EarbudDevice?
@@ -253,6 +254,17 @@ final class IslandModel: ObservableObject {
     init() {
         recorderChanges = recorder.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(player.rawValue)")
+    }
+    func toggleMirror() {
+        if mirrorVisible {
+            mirrorVisible = false
+            expanded = expandedBeforeMirror
+        } else {
+            expandedBeforeMirror = expanded
+            mirrorVisible = true
+            expanded = true
+        }
+        resize?()
     }
     func toggle() { scriptEditing = false; expanded.toggle(); if !expanded { mirrorVisible = false }; resize?() }
     func selectPlayer(_ value: MusicPlayer) {
@@ -461,8 +473,7 @@ struct IslandView: View {
                     control("forward.end.fill", label: "Next song", command: "next track")
                 }
                 Button {
-                    model.mirrorVisible.toggle()
-                    if model.mirrorVisible { model.expanded = true; model.resize?() }
+                    model.toggleMirror()
                 } label: {
                     Image(systemName: "person.crop.circle").foregroundStyle(model.mirrorVisible ? Color.mint : .gray)
                 }.buttonStyle(.plain).help("Open or close camera mirror").accessibilityLabel("Camera mirror")
@@ -580,7 +591,6 @@ struct IslandView: View {
                     control("backward.end.fill", label: "Previous song", command: "previous track")
                     control(model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", command: "playpause", prominent: true)
                     control("forward.end.fill", label: "Next song", command: "next track")
-                    control("stop.fill", label: "Stop playback", command: "pause")
                     Spacer()
                 }
             } else {
@@ -638,10 +648,10 @@ struct IslandView: View {
             HStack(spacing: 4) {
                 ForEach([5, 25, 50], id: \.self) { minutes in
                     Button { model.focus.reset(minutes: minutes) } label: {
-                        Text("\(minutes) min").font(.system(size: 12, weight: .medium)).monospacedDigit()
+                        Text("\(minutes)").font(.system(size: 12, weight: .medium)).monospacedDigit()
                             .padding(.horizontal, 17).padding(.vertical, 7)
                             .background(model.focus.duration == Double(minutes * 60) ? .white.opacity(0.16) : .clear, in: Capsule())
-                    }.buttonStyle(.plain).disabled(model.focus.active)
+                    }.buttonStyle(.plain).disabled(model.focus.active).help("\(minutes) minutes").accessibilityLabel("\(minutes) minutes")
                 }
             }.padding(4).background(.black.opacity(0.18), in: Capsule())
             HStack(spacing: 12) {
@@ -651,22 +661,24 @@ struct IslandView: View {
                 Stepper(value: $focusMinutes, in: 0...59) {
                     Text("\(focusMinutes) min").monospacedDigit()
                 }.frame(width: 115)
-                Button("Set duration") { model.focus.reset(minutes: focusHours * 60 + focusMinutes) }
-                    .buttonStyle(.bordered).disabled(focusHours == 0 && focusMinutes == 0)
+                Button { model.focus.reset(minutes: focusHours * 60 + focusMinutes) } label: {
+                    Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)).frame(width: 30, height: 30)
+                }.buttonStyle(DockRoundButtonStyle()).disabled(focusHours == 0 && focusMinutes == 0)
+                    .help("Set custom duration").accessibilityLabel("Set custom duration")
             }.font(.system(size: 12)).disabled(model.focus.active)
                 .accessibilityElement(children: .contain).accessibilityLabel("Custom focus duration")
             HStack(spacing: 10) {
                 Button {
                     if model.focus.running { model.focus.pause(now: Date()) } else { model.focus.start(now: Date()) }
                 } label: {
-                    Label(model.focus.running ? "Pause" : model.focus.active && !model.focus.finished ? "Resume" : "Start focus", systemImage: model.focus.running ? "pause.fill" : "play.fill")
-                        .frame(minWidth: 105)
-                }.buttonStyle(MintButtonStyle())
+                    Image(systemName: model.focus.running ? "pause.fill" : "play.fill")
+                        .font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).foregroundStyle(.mint)
+                }.buttonStyle(DockRoundButtonStyle())
+                    .help(model.focus.running ? "Pause focus" : model.focus.active && !model.focus.finished ? "Resume focus" : "Start focus")
+                    .accessibilityLabel(model.focus.running ? "Pause focus" : model.focus.active && !model.focus.finished ? "Resume focus" : "Start focus")
                 Button { model.focus.stop() } label: {
-                    Label("Stop", systemImage: "stop.fill").font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 18).padding(.vertical, 9)
-                        .background(.white.opacity(0.09), in: Capsule())
-                }.buttonStyle(.plain).help("Stop and reset to the selected duration")
+                    Image(systemName: "stop.fill").font(.system(size: 17, weight: .semibold)).frame(width: 46, height: 46)
+                }.buttonStyle(DockRoundButtonStyle()).help("Stop and reset focus").accessibilityLabel("Stop and reset focus")
             }
         }.frame(maxWidth: .infinity).padding(18)
             .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
