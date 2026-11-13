@@ -167,3 +167,11 @@ The glass lock-screen card includes album artwork, song/artist, previous, play/p
 ### 0.9.4
 
 The lock-screen music card is now a 320-point square: large album artwork at the top, centered song and artist below, followed by previous, play/pause, next, and stop controls. Its glass tint, artwork shadow, playback button, and edge glow use the same artwork-derived accent as the unlocked dock. Additional focus/recording activities extend the card vertically, with scrolling on shorter screens.
+
+## 0.10.0
+
+Hover at the top center of any connected display to reveal AeroDock there, whether or not the screen has a physical camera notch. The same dock follows the display whose top-center hotspot you enter. Dragging files into that hotspot opens Files automatically.
+
+Files provides two drop targets: a temporary tray and AirDrop. Finder files and folders are copied to session storage, preserving originals. Image/file thumbnails appear in the tray. Dragging to another app removes the tray entry only after an accepted copy; cancelled drags keep it. The remove button only removes the tray entry. Dropping onto AirDrop opens macOS's recipient chooser; failed or cancelled transfers leave the copies in the tray. AirDrop recipients are always chosen by the user.
+
+Tray entries last until AeroDock quits. Temporary copies are retained briefly so receiving apps can finish reading them; copies older than 24 hours are cleaned on a later launch. Temporary copies are not a backup. Browser-only images or promised-file drags without a file URL are not supported yet. External-display placement and sending to a second AirDrop device require live hardware verification.

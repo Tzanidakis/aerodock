@@ -42,8 +42,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastRefresh = Date.distantPast
     private var lastCalendarRefresh = Date.distantPast
     private var lastSlowTick = Date.distantPast
+    private var selectedScreenID: UInt32?
+    private var dragPasteboardCount = NSPasteboard(name: .drag).changeCount
+    private var fileDragInProgress = false
     private var activeScreen: NSScreen? {
-        NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first
+        NSScreen.screens.first(where: { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32) == selectedScreenID })
+            ?? NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first
+    }
+    private func hotspot(on screen: NSScreen) -> NSRect {
+        let camera = cameraFrame(on: screen)
+        return DisplayHotspot.frame(screen: screen.frame, notchWidth: camera.width, notchHeight: screen.safeAreaInsets.top)
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -170,14 +178,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if now.timeIntervalSince(lastRefresh) >= 1 { lastRefresh = now; model.refreshMusic() }
             return
         }
-        guard let screen = activeScreen else { return }
         let mouse = NSEvent.mouseLocation
-        let hot = cameraFrame(on: screen).insetBy(dx: -8, dy: -10)
+        let dragPasteboard = NSPasteboard(name: .drag)
+        if NSEvent.pressedMouseButtons == 0 {
+            fileDragInProgress = false
+            dragPasteboardCount = dragPasteboard.changeCount
+        } else if dragPasteboard.changeCount != dragPasteboardCount {
+            fileDragInProgress = dragPasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+        }
+        if visibility.mode != .hidden, let hovered = NSScreen.screens.first(where: { hotspot(on: $0).contains(mouse) }) {
+            let id = hovered.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32
+            if id != selectedScreenID { selectedScreenID = id; position() }
+            if fileDragInProgress || model.fileTray.dragging {
+                model.expanded = true; model.tab = 6
+                visibility.reveal(now: Date.timeIntervalSinceReferenceDate)
+                applyVisibility()
+            }
+        }
+        guard let screen = activeScreen else { return }
+        let hot = hotspot(on: screen)
         // Include the small gap from the camera to the island so crossing it never hides controls.
         let overPanel = panel.isVisible && panel.frame.insetBy(dx: -8, dy: -10).contains(mouse)
         let old = visibility.visible
         visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse) || model.presenting, inPanel: overPanel,
-                          interacting: model.mirrorVisible || model.earbudNotice != nil || model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0), active: model.hasActivity)
+                          interacting: model.fileTray.busy || model.mirrorVisible || model.earbudNotice != nil || model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0), active: model.hasActivity)
         if old != visibility.visible {
             applyVisibility()
         }
@@ -226,6 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @MainActor
 final class IslandModel: ObservableObject {
     private var expandedBeforeMirror = false
+    let fileTray = FileTray()
     @Published var mirrorVisible = false
     @Published var earbudDevices: [EarbudDevice] = []
     @Published var earbudNotice: EarbudDevice?
@@ -529,13 +554,14 @@ struct IslandView: View {
                     if model.mirrorVisible {
                         HStack { Spacer(); MirrorView(); Spacer() }
                     }
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 6), spacing: 4) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
                         tabButton("Music", icon: "music.note", index: 0)
                         tabButton("Calendar", icon: "calendar", index: 1)
                         tabButton("Focus", icon: "timer", index: 2)
                         tabButton("Apps", icon: "square.grid.2x2", index: 3)
                         tabButton("Record", icon: "mic", index: 4)
                         tabButton("Script", icon: "text.alignleft", index: 5)
+                        tabButton("Files", icon: "tray", index: 6)
                     }
                     ScrollView {
                     if model.tab == 0 { music }
@@ -543,7 +569,8 @@ struct IslandView: View {
                     else if model.tab == 2 { focus }
                     else if model.tab == 3 { apps }
                     else if model.tab == 4 { RecorderView(recorder: model.recorder) }
-                    else { ScriptEditorView(model: model) }
+                    else if model.tab == 5 { ScriptEditorView(model: model) }
+                    else { FileTrayView(tray: model.fileTray) }
                     }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     Spacer(minLength: 0)
                     HStack {
@@ -583,7 +610,7 @@ struct IslandView: View {
     }
     func tabButton(_ text: String, icon: String, index: Int) -> some View {
         Button { model.scriptEditing = false; model.tab = index; if index == 1 { model.refreshCalendar() } } label: {
-            Label(text, systemImage: icon).font(.system(size: 11, weight: .medium)).padding(.horizontal, 10).padding(.vertical, 8)
+            Label(text, systemImage: icon).font(.system(size: 11, weight: .medium)).lineLimit(1).padding(.horizontal, 6).padding(.vertical, 8)
                 .background(model.tab == index ? Color.white.opacity(0.12) : .clear, in: Capsule())
         }.buttonStyle(.plain)
     }

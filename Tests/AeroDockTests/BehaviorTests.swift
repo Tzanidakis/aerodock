@@ -11,6 +11,8 @@ struct BehaviorTests {
         tests.testFocusStopRestoresSelectedDuration()
         tests.testCustomFocusDuration()
         tests.testTimedLyricsFollowPlayback()
+        tests.testDisplayHotspots()
+        tests.testTraySnapshotsAndCancelledDrags()
         tests.testLockMusicPauseAndResume()
         tests.testInteractiveHUDAndLockActivity()
         tests.testLevelChanges()
@@ -31,7 +33,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("23 behavior, artwork, presentation and recording tests passed")
+        print("25 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -79,6 +81,36 @@ struct BehaviorTests {
         XCTAssertEqual(TimedLyric.current(in: lines, at: 11), 0)
         XCTAssertEqual(lines[3].time, 60.25)
         XCTAssertTrue(TimedLyric.parse(nil).isEmpty)
+    }
+    func testDisplayHotspots() {
+        let external = CGRect(x: 1920, y: -200, width: 2560, height: 1440)
+        let hot = DisplayHotspot.frame(screen: external, notchWidth: 64, notchHeight: 0)
+        XCTAssertTrue(hot.contains(CGPoint(x: external.midX, y: external.maxY - 1)))
+        XCTAssertFalse(hot.contains(CGPoint(x: external.minX + 20, y: external.maxY - 1)))
+        XCTAssertEqual(hot.midX, external.midX)
+        let notched = DisplayHotspot.frame(screen: CGRect(x: -1512, y: 0, width: 1512, height: 982), notchWidth: 180, notchHeight: 38)
+        XCTAssertEqual(notched.width, 196)
+        XCTAssertEqual(notched.height, 52)
+    }
+    func testTraySnapshotsAndCancelledDrags() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try! FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let original = root.appendingPathComponent("example.txt")
+        try! Data("original".utf8).write(to: original)
+        let storage = try! TrayStorage(root: root.appendingPathComponent("tray"))
+        let first = try! storage.copy(original)
+        let second = try! storage.copy(original)
+        XCTAssertTrue(first != second)
+        XCTAssertEqual(first.lastPathComponent, "example.txt")
+        try! Data("changed".utf8).write(to: original)
+        XCTAssertEqual(try! String(contentsOf: first, encoding: .utf8), "original")
+        XCTAssertEqual(try! String(contentsOf: original, encoding: .utf8), "changed")
+        try! FileManager.default.removeItem(at: original)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: second.path))
+        XCTAssertFalse(TrayDragResult.shouldRemove([]))
+        XCTAssertTrue(TrayDragResult.shouldRemove(.copy))
+        XCTAssertFalse(TrayDragResult.shouldRemove(.delete))
     }
     func testLockMusicPauseAndResume() {
         var state = LockMusicSession()

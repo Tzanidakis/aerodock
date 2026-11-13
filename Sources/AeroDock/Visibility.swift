@@ -71,3 +71,11 @@ struct LockMusicSession: Equatable {
     }
     mutating func stop() { visible = false }
 }
+
+struct DisplayHotspot {
+    static func frame(screen: CGRect, notchWidth: CGFloat, notchHeight: CGFloat) -> CGRect {
+        let width = max(140, notchWidth + 16)
+        let height = max(44, notchHeight + 14)
+        return CGRect(x: screen.midX - width / 2, y: screen.maxY - height, width: width, height: height)
+    }
+}
