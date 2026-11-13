@@ -58,14 +58,14 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     }
     func stop() {
         guard recording else { return }
-        tick(); recording = false; finishing = true; level = 0
+        recording = false; finishing = true; elapsed = 0; level = 0
         message = "Saving recording…"
         recorder?.stop()
     }
     func stopForQuit() { recorder?.stop() }
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         Task { @MainActor in
-            self.recording = false; self.finishing = false; self.level = 0; self.recorder = nil
+            self.recording = false; self.finishing = false; self.elapsed = 0; self.level = 0; self.recorder = nil
             self.message = flag && !self.recordingFailed ? "Saved on this Mac. Play it or export a copy below." : "Recording stopped unexpectedly. Check the saved file before using it."
             self.currentURL = nil; self.reload()
         }
@@ -73,17 +73,29 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
         Task { @MainActor in
             self.recordingFailed = true
-            self.recorder?.stop(); self.recording = false; self.finishing = false; self.level = 0
+            self.recorder?.stop(); self.recording = false; self.finishing = false; self.elapsed = 0; self.level = 0
             self.recorder = nil; self.currentURL = nil
             self.message = "Recording failed. Check your audio input and disk space."
             self.reload()
         }
     }
     func reload() {
-        files = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.creationDateKey])) ?? [])
-            .filter { $0.pathExtension == "m4a" && $0 != currentURL }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        let updated = RecordingFiles.list(in: folder, excluding: currentURL)
+        if files != updated { files = updated }
     }
+    private func isAvailable(_ file: URL) -> Bool {
+        reload()
+        guard files.contains(file) else {
+            message = "That recording was moved or deleted."
+            return false
+        }
+        return true
+    }
+    func play(_ file: URL) {
+        guard isAvailable(file) else { return }
+        NSWorkspace.shared.open(file)
+    }
+
     func showFolder() {
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -91,6 +103,7 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         } catch { message = "Could not open the recordings folder." }
     }
     func export(_ file: URL) {
+        guard isAvailable(file) else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.mpeg4Audio]
         panel.nameFieldStringValue = file.lastPathComponent
@@ -101,13 +114,14 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 let data = try Data(contentsOf: file)
                 try data.write(to: destination, options: .atomic)
                 self.message = "Exported a copy of your recording."
-            } catch { self.message = "Could not export this recording. Choose another location." }
+            } catch { self.reload(); self.message = "Could not export this recording. It may have been moved or deleted." }
         }
     }
 }
 
 struct RecorderView: View {
     @ObservedObject var recorder: VoiceRecorder
+    private let refresh = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -132,11 +146,14 @@ struct RecorderView: View {
                     HStack {
                         Text(file.deletingPathExtension().lastPathComponent).lineLimit(1).font(.system(size: 10))
                         Spacer()
-                        Button { NSWorkspace.shared.open(file) } label: { Image(systemName: "play.circle") }.help("Play recording in your audio app")
+                        Button { recorder.play(file) } label: { Image(systemName: "play.circle") }.help("Play recording in your audio app")
                         Button { recorder.export(file) } label: { Image(systemName: "square.and.arrow.up") }.help("Export recording")
                     }.buttonStyle(.plain)
                 }
             }
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
+        .onAppear { recorder.reload() }
+        .onReceive(refresh) { _ in recorder.reload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in recorder.reload() }
     }
 }

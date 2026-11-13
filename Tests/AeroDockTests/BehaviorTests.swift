@@ -20,7 +20,23 @@ struct BehaviorTests {
         tests.testPresentationPauseAndManualNavigation()
         tests.testPresentationEndAndReplay()
         tests.testPresentationDoesNotSkipAfterSleep()
-        print("12 behavior, artwork and presentation tests passed")
+        tests.testDeletedRecordingsDisappear()
+        print("13 behavior, artwork, presentation and recording tests passed")
+    }
+    func testDeletedRecordingsDisappear() {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try! FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let old = folder.appendingPathComponent("Voice-001.m4a")
+        let recent = folder.appendingPathComponent("Voice-002.m4a")
+        let active = folder.appendingPathComponent("Voice-003.m4a")
+        for file in [old, recent, active] { try! Data([1]).write(to: file) }
+        try! FileManager.default.createDirectory(at: folder.appendingPathComponent("directory.m4a"), withIntermediateDirectories: true)
+        XCTAssertEqual(RecordingFiles.list(in: folder, excluding: active), [recent, old].map { $0.resolvingSymlinksInPath() })
+        try! FileManager.default.removeItem(at: recent)
+        XCTAssertEqual(RecordingFiles.list(in: folder, excluding: active), [old.resolvingSymlinksInPath()])
+        try! FileManager.default.moveItem(at: old, to: folder.appendingPathComponent("moved.txt"))
+        XCTAssertEqual(RecordingFiles.list(in: folder, excluding: active), [])
     }
     func testPresentationEmptyAndChunking() {
         var p = Presentation()

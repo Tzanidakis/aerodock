@@ -10,6 +10,11 @@ Download the ZIP from [Releases](https://github.com/Tzanidakis/aerodock/releases
 
 This is an **unsigned developer preview** (ad-hoc signed, not Apple notarized). macOS may prevent it from opening normally. Only install it if you trust this project; a Developer ID signed and notarized release is planned. Source builds are available below.
 
+## Fixed in 0.4.1
+
+- Stopping a voice recording immediately resets the timer and input level to zero, ready for the next recording.
+- Recent recordings refresh when the Record tab opens, when AeroDock regains focus, and every second while the tab is visible. Files deleted or moved in Finder disappear from the list. Play/export also check that a file still exists.
+
 ## New in 0.4
 
 - **Quicker interaction:** hover dwell reduced from 180 ms to 80 ms, pointer checks every 50 ms, visible music updates every 500 ms (previously 3 seconds). Play/pause changes visually immediately and is reconciled with the player. Actual playback latency still depends on the music app.
@@ -63,7 +68,7 @@ Music control requires the selected desktop app and Automation permission; brows
 
 ## Development
 
-The app lives in `Sources/AeroDock/AeroDock.swift`; bundle metadata lives in `Resources/Info.plist`. No external dependencies. Run `./scripts/test.sh` for twelve deterministic hover/visibility, timer, artwork, and presentation tests (works with Command Line Tools alone). CI runs these checks, builds the app and attaches a preview ZIP as a workflow artifact.
+The app lives in `Sources/AeroDock/AeroDock.swift`; bundle metadata lives in `Resources/Info.plist`. No external dependencies. Run `./scripts/test.sh` for thirteen deterministic hover/visibility, timer, artwork, presentation, and recording-file tests (works with Command Line Tools alone). CI runs these checks, builds the app and attaches a preview ZIP as a workflow artifact.
 
 Feature ideas and bug reports are welcome through [Issues](https://github.com/Tzanidakis/aerodock/issues). Include your macOS version, Mac model, and steps to reproduce; please omit personal calendar details.
 
