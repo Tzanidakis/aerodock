@@ -115,3 +115,7 @@ Active focus sessions show a countdown, pause/resume, and stop controls directly
 Focus supports custom hours and minutes, from 1 minute to 23 hours 59 minutes. Choose the values and press Set duration before starting. Stop restores that duration.
 
 The expanded Music page displays lyrics below playback controls only when LRCLIB has lyrics for the current song. Opening the Music page sends the current song title, artist, and duration to https://lrclib.net for matching. Instrumental tracks, missing results, and network failures show no lyrics section. Track changes clear old lyrics. Lyrics availability depends on LRCLIB and is separate from Spotify or Apple Music's own catalog.
+
+### 0.7.4
+
+Lyrics lookup now falls back to catalog search when an exact match is missing. It removes remaster labels, requires a matching title and artist, and chooses the nearest duration within 15 seconds. Live-version labels are preserved. Temporary failures retry after a delay; rate-limit responses respect the service's retry interval.

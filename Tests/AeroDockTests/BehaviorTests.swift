@@ -64,6 +64,11 @@ struct BehaviorTests {
         XCTAssertEqual(clock.remaining, 1439 * 60)
     }
     func testLyricsAvailability() {
+        let match = LyricsRecord(trackName: "Belladonna", artistName: "UFO", duration: 265, instrumental: false, plainLyrics: "Example", syncedLyrics: nil)
+        XCTAssertEqual(LyricsRecord.bestMatch([match], title: "Belladonna - 2007 Remaster", artist: "UFO", duration: 262)?.text, "Example")
+        XCTAssertTrue(LyricsRecord.bestMatch([match], title: "Belladonna - Live", artist: "UFO", duration: 262) == nil)
+        XCTAssertTrue(LyricsRecord.bestMatch([match], title: "Belladonna", artist: "Different artist", duration: 262) == nil)
+        XCTAssertTrue(LyricsRecord.bestMatch([match], title: "Belladonna", artist: "UFO", duration: 300) == nil)
         XCTAssertTrue(LyricsRecord(instrumental: true, plainLyrics: "ignored", syncedLyrics: nil).text == nil)
         XCTAssertTrue(LyricsRecord(instrumental: false, plainLyrics: "  ", syncedLyrics: nil).text == nil)
         XCTAssertEqual(LyricsRecord(instrumental: false, plainLyrics: "Example line", syncedLyrics: nil).text, "Example line")
