@@ -43,7 +43,7 @@ The glow is decorative and follows playback state, not the song's audio waveform
 - **Hide completely:** click the crossed-out eye, or choose “Hide AeroDock until I show it” in the menu bar. Hover no longer reveals it until you choose Show AeroDock. The menu bar icon remains available.
 - **Pin:** keep the island visible; Unpin returns to auto-hide. Visibility preference survives relaunch. Launching in auto-hide briefly shows the island before it tucks away.
 - **Quit completely:** expand AeroDock and press the red power button in the footer. AeroDock stops running, including its menu-bar item and background activity. Open AeroDock again from Applications whenever you want to restart it.
-- **Apple Music and Spotify:** current song, artist, playback controls, reconnect/disconnect, and an Open App button. The expanded Stop control pauses playback.
+- **Apple Music and Spotify:** current song, artist, playback controls, reconnect/disconnect, and an Open App button. The expanded player shows elapsed and total time with a draggable seek bar for moving to another part of the song. The Stop control pauses playback.
 - **Focus timer:** 5-, 25-, and 50-minute sessions, pause/resume/reset. Keeps time when the island is hidden and across sleep while the app is running. Completion is shown silently; quitting resets it.
 - **Quick apps:** open Notes, Reminders, Calendar, Mail, Shortcuts, and Calculator. These are launch shortcuts, not embedded app views. Unavailable apps are disabled.
 - **Calendar:** the next three events in the next seven days from calendars synced to the Mac.
@@ -92,3 +92,5 @@ Use the trash button beside a recent recording to remove the saved recording and
 The Calendar tab includes a full month grid, month/year heading, weekday labels, highlighted today, previous/next month controls, and a complete selected date. Upcoming events remain below the grid. The month view works without calendar access.
 
 The expanded island uses a wide horizontal layout, with all six tabs in one row and calendar/events side by side. Longer panels scroll within the island.
+
+The compact island remains 360 × 52 points. Opening the full AeroDock uses the same horizontal proportions in a smaller 650 × 397-point panel.

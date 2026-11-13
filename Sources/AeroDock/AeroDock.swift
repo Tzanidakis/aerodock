@@ -142,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func position() {
         guard let screen = activeScreen else { return }
-        let size = model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(720, screen.visibleFrame.width - 24) : 360, height: model.expanded ? 440 : 52)
+        let size = model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(650, screen.visibleFrame.width - 24) : 360, height: model.expanded ? 397 : 52)
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 4
         panel.setFrame(NSRect(x: screen.frame.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height), display: true)
     }
@@ -186,6 +186,9 @@ final class IslandModel: ObservableObject {
     @Published var isVisible = false
     @Published var artwork: CoverArt?
     @Published var playing = false
+    @Published var playbackPosition: Double = 0
+    @Published var trackDuration: Double = 0
+    @Published private(set) var seeking = false
     @Published var musicConnected = false
     @Published var message: String?
     @Published var events: [EKEvent] = []
@@ -210,7 +213,7 @@ final class IslandModel: ObservableObject {
     }
     func toggle() { scriptEditing = false; expanded.toggle(); resize?() }
     func selectPlayer(_ value: MusicPlayer) {
-        clearArtwork(); generation += 1; player = value; playing = false; message = nil
+        clearArtwork(); generation += 1; player = value; playing = false; playbackPosition = 0; trackDuration = 0; message = nil
         title = "Your music, a little closer."; artist = value.rawValue
         UserDefaults.standard.set(value.rawValue, forKey: "musicPlayer")
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(value.rawValue)")
@@ -223,7 +226,7 @@ final class IslandModel: ObservableObject {
         runMusic("")
     }
     func disconnectMusic() {
-        clearArtwork(); generation += 1; musicConnected = false; playing = false; message = nil
+        clearArtwork(); generation += 1; musicConnected = false; playing = false; playbackPosition = 0; trackDuration = 0; message = nil
         title = "Music disconnected"; artist = "Connect when you are ready"
         UserDefaults.standard.set(false, forKey: "connected.\(player.rawValue)")
     }
@@ -233,7 +236,7 @@ final class IslandModel: ObservableObject {
         guard NSRunningApplication.runningApplications(withBundleIdentifier: selected.bundleID).first != nil else {
             message = "Open \(selected.rawValue), then play a track."
             clearArtwork()
-            title = "\(selected.rawValue) is not running"; artist = "Open the desktop app"; playing = false
+            title = "\(selected.rawValue) is not running"; artist = "Open the desktop app"; playing = false; playbackPosition = 0; trackDuration = 0
             return
         }
         // Polls may be skipped, but never discard a user's playback command.
@@ -269,7 +272,9 @@ final class IslandModel: ObservableObject {
                         try
                             \(artworkScript)
                         end try
-                        return {name of current track, artist of current track, playbackState, songID, cover}
+                        set songPosition to player position as real
+                        set songDuration to duration of current track as real
+                        return {name of current track, artist of current track, playbackState, songID, cover, songPosition, songDuration}
                     on error
                         return {"Nothing playing", "Choose a track in \(selected.rawValue)", playbackState}
                     end try
@@ -281,6 +286,9 @@ final class IslandModel: ObservableObject {
             let trackID = result?.atIndex(4)?.stringValue ?? ""
             let coverURL = selected == .spotify ? result?.atIndex(5)?.stringValue : nil
             let coverData = selected == .appleMusic && trackID != knownArtworkID ? result?.atIndex(5)?.data : nil
+            let position = result?.atIndex(6)?.doubleValue ?? 0
+            let rawDuration = result?.atIndex(7)?.doubleValue ?? 0
+            let duration = selected == .spotify ? rawDuration / 1000 : rawDuration
             let failed = error != nil
             DispatchQueue.main.async {
                 self.pendingMusicRequests = max(0, self.pendingMusicRequests - 1)
@@ -288,12 +296,16 @@ final class IslandModel: ObservableObject {
                 if failed {
                     self.message = "Could not control \(selected.rawValue). Check Privacy & Security → Automation, then reconnect."
                     self.clearArtwork()
-                    self.musicConnected = false; self.playing = false
+                    self.musicConnected = false; self.playing = false; self.playbackPosition = 0; self.trackDuration = 0
                     UserDefaults.standard.set(false, forKey: "connected.\(selected.rawValue)")
                 } else {
                     self.title = values[0].isEmpty ? "Nothing playing" : values[0]
                     self.artist = values[1]
                     if Date() >= self.playbackFeedbackUntil { self.playing = values[2] == "playing" }
+                    if !self.seeking {
+                        self.trackDuration = max(0, duration)
+                        self.playbackPosition = min(max(0, position), max(0, duration))
+                    }
                     self.message = nil
                     if trackID.isEmpty { self.clearArtwork() }
                     else {
@@ -303,6 +315,14 @@ final class IslandModel: ObservableObject {
                 }
             }
         }
+    }
+    func setSeeking(_ value: Bool) { seeking = value }
+    func seek(to seconds: Double) {
+        guard musicConnected, trackDuration > 0 else { return }
+        let target = min(max(0, seconds), trackDuration)
+        playbackPosition = target
+        let value = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), target)
+        runMusic("set player position to \(value)")
     }
     func refreshMusic() { if musicConnected { runMusic("") } }
     func openApp(_ id: String) {
@@ -441,6 +461,27 @@ struct IslandView: View {
                 }
             }
             if model.musicConnected && model.message == nil {
+                VStack(spacing: 3) {
+                    Slider(value: Binding(
+                        get: { min(model.playbackPosition, max(1, model.trackDuration)) },
+                        set: { model.playbackPosition = $0 }
+                    ), in: 0...max(1, model.trackDuration), onEditingChanged: { editing in
+                        model.setSeeking(editing)
+                        if !editing { model.seek(to: model.playbackPosition) }
+                    })
+                    .tint(mint)
+                    .controlSize(.small)
+                    .disabled(model.trackDuration <= 0)
+                    .accessibilityLabel("Song position")
+                    .accessibilityValue("\(playbackTime(model.playbackPosition)) of \(playbackTime(model.trackDuration))")
+                    HStack {
+                        Text(playbackTime(model.playbackPosition))
+                        Spacer()
+                        Text(playbackTime(model.trackDuration))
+                    }
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.gray)
+                }
                 HStack(spacing: 27) {
                     Spacer()
                     control("backward.end.fill", label: "Previous song", command: "previous track")
@@ -459,6 +500,10 @@ struct IslandView: View {
                 if model.musicConnected { Button("Disconnect", action: model.disconnectMusic) }
             }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(mint)
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
+    }
+    func playbackTime(_ value: Double) -> String {
+        let seconds = max(0, Int(value.rounded(.down)))
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
     func control(_ icon: String, label: String, command: String, prominent: Bool = false) -> some View {
         Button { model.runMusic(command) } label: {
