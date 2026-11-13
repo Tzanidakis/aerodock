@@ -9,7 +9,8 @@ final class MirrorCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private var requested = false
     @Published var isDark = false
     private var lastSample = CMTime.zero
-    private var darkFrames = 0
+    private let ambientLight = AmbientLightReader()
+    private var lightState = MirrorLightState()
     func start() {
         requested = true
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -68,9 +69,9 @@ final class MirrorCapture: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             }
         }
         guard count > 0 else { return }
-        darkFrames = Double(total) / Double(count) < 85 ? darkFrames + 1 : 0
-        // Keep the light on for this mirror session so illumination cannot cause flicker.
-        if darkFrames == 2 { DispatchQueue.main.async { self.isDark = true } }
+        let light = lightState.update(lux: ambientLight.readLux(), imageBrightness: Double(total) / Double(count))
+        DispatchQueue.main.async { if self.isDark != light { self.isDark = light } }
+
     }
     func stop() {
         requested = false
@@ -122,17 +123,21 @@ struct MirrorView: View {
                 Text(capture.message).font(.system(size: 10)).multilineTextAlignment(.center).padding(12)
             }
         }
-        .frame(width: 100, height: 100)
+        .frame(width: 120, height: 120)
         .clipShape(Circle())
-        .padding(16)
-        .background(Circle().fill(lightOn ? Color.white : Color.white.opacity(0.08)))
-        .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                .padding(.vertical, 25)
+        .frame(maxWidth: .infinity)
+        .background(lightOn ? Color.white : Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: lightOn ? .white.opacity(0.5) : .clear, radius: 16)
+        VStack(spacing: 14) {
         Button {
             lightOverride = !lightOn
         } label: {
             Image(systemName: "lightbulb.fill")
                 .foregroundStyle(lightOn ? Color.white : .gray)
         }.buttonStyle(.plain).help("Toggle mirror light").accessibilityLabel("Mirror light")
+        Button("Auto") { lightOverride = nil }.font(.system(size: 10, weight: .semibold)).buttonStyle(.plain).foregroundStyle(lightOverride == nil ? .mint : .gray)
+        }
         }
         .accessibilityLabel("Live camera mirror")
         .onAppear { capture.start() }

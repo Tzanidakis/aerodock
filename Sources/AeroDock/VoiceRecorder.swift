@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     @Published private(set) var recording = false
+    @Published private(set) var paused = false
     @Published private(set) var requesting = false
     @Published private(set) var finishing = false
     @Published private(set) var elapsed: TimeInterval = 0
@@ -46,7 +47,7 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
                 ])
                 audio.delegate = self; audio.isMeteringEnabled = true
                 guard audio.prepareToRecord(), audio.record() else { throw CocoaError(.fileWriteUnknown) }
-                recorder = audio; currentURL = url; elapsed = 0; level = 0; recording = true
+                recorder = audio; currentURL = url; elapsed = 0; level = 0; paused = false; recording = true
                 message = "Recording microphone…"
             } catch { message = "Could not start recording. Check your microphone and available disk space." }
         }
@@ -57,21 +58,30 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
             lastFileRefresh = now
             reload()
         }
-        guard recording, let recorder else { return }
+        guard recording, !paused, let recorder else { return }
         elapsed = recorder.currentTime
         recorder.updateMeters()
         level = max(0, min(1, pow(10, Double(recorder.averagePower(forChannel: 0)) / 20)))
     }
+    func togglePause() {
+        guard recording, let recorder else { return }
+        if paused {
+            guard recorder.record() else { message = "Could not resume recording."; return }
+            paused = false; message = "Recording microphone…"
+        } else {
+            recorder.pause(); paused = true; level = 0; message = "Recording paused"
+        }
+    }
     func stop() {
         guard recording else { return }
-        recording = false; finishing = true; elapsed = 0; level = 0
+        recording = false; paused = false; finishing = true; elapsed = 0; level = 0
         message = "Saving recording…"
         recorder?.stop()
     }
     func stopForQuit() { recorder?.stop() }
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         Task { @MainActor in
-            self.recording = false; self.finishing = false; self.elapsed = 0; self.level = 0; self.recorder = nil
+            self.recording = false; self.paused = false; self.finishing = false; self.elapsed = 0; self.level = 0; self.recorder = nil
             self.message = flag && !self.recordingFailed ? "Saved on this Mac. Play it or export a copy below." : "Recording stopped unexpectedly. Check the saved file before using it."
             self.currentURL = nil; self.reload()
         }
@@ -79,7 +89,7 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
         Task { @MainActor in
             self.recordingFailed = true
-            self.recorder?.stop(); self.recording = false; self.finishing = false; self.elapsed = 0; self.level = 0
+            self.recorder?.stop(); self.recording = false; self.paused = false; self.finishing = false; self.elapsed = 0; self.level = 0
             self.recorder = nil; self.currentURL = nil
             self.message = "Recording failed. Check your audio input and disk space."
             self.reload()
@@ -139,23 +149,35 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
 struct RecorderView: View {
     @ObservedObject var recorder: VoiceRecorder
+    private func recorderButton(_ icon: String, label: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 20, weight: .semibold))
+                .frame(width: 48, height: 48).foregroundStyle(color)
+        }.buttonStyle(DockRoundButtonStyle()).help(label).accessibilityLabel(label)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Image(systemName: recorder.recording ? "mic.fill" : "mic").foregroundStyle(recorder.recording ? .red : .mint)
-                Text(recorder.recording ? "RECORDING" : "VOICE RECORDER").font(.system(size: 11, weight: .bold)).tracking(1)
+                Text(recorder.paused ? "Paused" : recorder.recording ? "Recording" : "Voice Recorder").font(.system(size: 12, weight: .semibold))
                 Spacer()
-                Text(recorder.time).font(.system(size: 23, weight: .light, design: .monospaced))
+                Text(recorder.time).font(.system(size: 32, weight: .light, design: .rounded)).monospacedDigit()
             }
             ProgressView(value: recorder.level).tint(.red).accessibilityLabel("Microphone level")
             Text(recorder.message).font(.system(size: 11)).foregroundStyle(.gray).fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Button(recorder.recording ? "Stop & save" : (recorder.requesting ? "Waiting for microphone…" : "Start recording")) {
-                    if recorder.recording { recorder.stop() } else { recorder.start() }
-                }.buttonStyle(MintButtonStyle()).disabled(recorder.requesting || recorder.finishing)
+            HStack(spacing: 18) {
                 Spacer()
-                Button("Files", action: recorder.showFolder).buttonStyle(.plain)
+                recorderButton("record.circle.fill", label: "Start recording", color: .red, action: recorder.start)
+                    .disabled(recorder.recording || recorder.requesting || recorder.finishing)
+                recorderButton(recorder.paused ? "play.fill" : "pause.fill", label: recorder.paused ? "Resume recording" : "Pause recording", color: .white, action: recorder.togglePause)
+                    .disabled(!recorder.recording)
+                recorderButton("stop.fill", label: "Finish and save recording", color: .white, action: recorder.stop)
+                    .disabled(!recorder.recording)
+                Spacer()
+                Button(action: recorder.showFolder) { Image(systemName: "folder") }.buttonStyle(.plain).help("Open recordings folder").accessibilityLabel("Open recordings folder")
             }
+
             if !recorder.files.isEmpty {
                 Divider()
                 Text("RECENT RECORDINGS").font(.system(size: 9, weight: .bold)).foregroundStyle(.gray)

@@ -45,12 +45,16 @@ struct CoverArt {
 final class ArtworkLoader {
     private var task: Task<Void, Never>?
     private var key: String?
+    private var cache: [String: CoverArt] = [:]
+    private var cacheOrder: [String] = []
     private var attempt: UUID?
     func reset() { task?.cancel(); task = nil; key = nil; attempt = nil }
     func load(key newKey: String, url: String?, bytes: Data?, deliver: @escaping (CoverArt?) -> Void) {
         guard newKey != key else { return }
         reset(); key = newKey
         let token = UUID(); attempt = token
+        let cacheKey = url ?? newKey
+        if let cached = cache[cacheKey] { deliver(cached); return }
         deliver(nil)
         task = Task {
             var result: CoverArt?
@@ -59,19 +63,18 @@ final class ArtworkLoader {
                 do {
                     var request = URLRequest(url: endpoint, timeoutInterval: 12)
                     request.cachePolicy = .returnCacheDataElseLoad
-                    let (stream, response) = try await URLSession.shared.bytes(for: request)
+                    let (data, response) = try await URLSession.shared.data(for: request)
                     guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-                          response.expectedContentLength <= 10_000_000 else { throw URLError(.badServerResponse) }
-                    var data = Data()
-                    for try await byte in stream {
-                        if Task.isCancelled { return }
-                        data.append(byte)
-                        if data.count > 10_000_000 { throw URLError(.dataLengthExceedsMaximum) }
-                    }
+                          data.count <= 10_000_000 else { throw URLError(.badServerResponse) }
                     result = CoverArt.decode(data)
                 } catch { /* Missing/offline artwork must never interrupt playback controls. */ }
             }
             guard !Task.isCancelled, attempt == token else { return }
+            if let result {
+                cache[cacheKey] = result
+                cacheOrder.append(cacheKey)
+                if cacheOrder.count > 24 { cache.removeValue(forKey: cacheOrder.removeFirst()) }
+            }
             deliver(result)
         }
     }

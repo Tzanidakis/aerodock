@@ -60,6 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cameraPanel.hidesOnDeactivate = false
         cameraPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         cameraPanel.contentView = NSHostingView(rootView: CameraGlow(model: model))
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(playerChanged), name: NSNotification.Name("com.spotify.client.PlaybackStateChanged"), object: nil)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(playerChanged), name: NSNotification.Name("com.apple.Music.playerInfo"), object: nil)
         model.resize = { [weak self] in self?.position() }
         model.changeMode = { [weak self] in self?.setMode($0) }
         NotificationCenter.default.addObserver(self, selector: #selector(position), name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -92,6 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Hiding or closing the panel must leave the menu bar app running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { model.recorder.stopForQuit() }
+    @objc private func playerChanged(_ notification: Notification) { model.musicDidChange() }
     func showRecorder() { show(); model.tab = 4; model.expanded = true; position() }
     func setMode(_ mode: VisibilityState.Mode) {
         model.earbudNotice = nil
@@ -169,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func position() {
         guard let screen = activeScreen else { return }
-        let size = model.earbudNotice != nil ? NSSize(width: 420, height: 88) : model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(650, screen.visibleFrame.width - 24) : (model.earbudDevices.isEmpty ? 390 : 460), height: model.expanded ? 397 : 52)
+        let size = model.earbudNotice != nil ? NSSize(width: 420, height: 88) : model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(650, screen.visibleFrame.width - 24) : (model.earbudDevices.isEmpty ? 390 : 460), height: model.expanded ? (model.mirrorVisible ? 570 : 430) : 52)
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 4
         let frame = NSRect(x: screen.frame.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height)
         guard panel.frame != frame else { return }
@@ -240,6 +243,7 @@ final class IslandModel: ObservableObject {
     private let eventStore = EKEventStore()
     private let musicQueue = DispatchQueue(label: "AeroDock.Music", qos: .userInitiated)
     private var pendingMusicRequests = 0
+    private var refreshRequested = false
     private var commandRevision = 0
     private var playbackFeedbackUntil = Date.distantPast
     private var generation = 0
@@ -331,6 +335,12 @@ final class IslandModel: ObservableObject {
             let failed = error != nil
             DispatchQueue.main.async {
                 self.pendingMusicRequests = max(0, self.pendingMusicRequests - 1)
+                defer {
+                    if self.pendingMusicRequests == 0 && self.refreshRequested {
+                        self.refreshRequested = false
+                        self.refreshMusic()
+                    }
+                }
                 guard self.generation == requestGeneration, self.commandRevision == requestRevision else { return }
                 if failed {
                     self.message = "Could not control \(selected.rawValue). Check Privacy & Security → Automation, then reconnect."
@@ -366,6 +376,9 @@ final class IslandModel: ObservableObject {
         playbackPosition = target
         let value = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), target)
         runMusic("set player position to \(value)")
+    }
+    func musicDidChange() {
+        if pendingMusicRequests > 0 { refreshRequested = true } else { refreshMusic() }
     }
     func refreshMusic() { if musicConnected { runMusic("") } }
     func openApp(_ id: String) {
@@ -432,7 +445,7 @@ struct IslandView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).help(model.expanded ? "Collapse AeroDock" : "Expand AeroDock")
                 if model.recorder.recording {
-                    Text(model.recorder.time).font(.system(size: 10, design: .monospaced)).foregroundStyle(.red)
+                    Text(model.recorder.time).font(.system(size: 11, weight: .medium, design: .rounded)).monospacedDigit().foregroundStyle(.red)
                     Button { model.recorder.stop() } label: { Image(systemName: "stop.circle.fill").foregroundStyle(.red) }
                         .buttonStyle(.plain).help("Stop & save voice recording").accessibilityLabel("Stop recording")
                 }
@@ -559,7 +572,7 @@ struct IslandView: View {
                         Spacer()
                         Text(playbackTime(model.trackDuration))
                     }
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium, design: .rounded)).monospacedDigit()
                     .foregroundStyle(.gray)
                 }
                 HStack(spacing: 27) {
@@ -597,9 +610,9 @@ struct IslandView: View {
     }
     func control(_ icon: String, label: String, command: String, prominent: Bool = false) -> some View {
         Button { model.runMusic(command) } label: {
-            Image(systemName: icon).font(.system(size: prominent ? 19 : 14)).frame(width: prominent ? 44 : 24, height: 44)
+            Image(systemName: icon).font(.system(size: prominent ? 19 : 13, weight: .semibold)).frame(width: prominent ? 44 : 30, height: prominent ? 44 : 30)
                 .foregroundStyle(prominent ? .black : .white)
-                .background(prominent ? mint : .clear, in: Circle())
+                .background(prominent ? mint : .white.opacity(0.07), in: Circle())
         }.buttonStyle(.plain).accessibilityLabel(label).help(label)
     }
     var focusTime: String {
@@ -728,5 +741,16 @@ struct MintButtonStyle: ButtonStyle {
             .padding(.horizontal, 18).padding(.vertical, 9)
             .foregroundStyle(.black)
             .background(Color(red: 0.65, green: 0.96, blue: 0.79).opacity(configuration.isPressed ? 0.75 : 1), in: Capsule())
+    }
+}
+
+struct DockRoundButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(.white.opacity(configuration.isPressed ? 0.18 : 0.08), in: Circle())
+            .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: 0.5))
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .opacity(enabled ? 1 : 0.3)
     }
 }

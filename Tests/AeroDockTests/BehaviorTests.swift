@@ -11,6 +11,7 @@ struct BehaviorTests {
         tests.testFocusStopRestoresSelectedDuration()
         tests.testCustomFocusDuration()
         tests.testTimedLyricsFollowPlayback()
+        tests.testMirrorLightHysteresis()
         tests.testLyricsAvailability()
         tests.testEarbudBatteryParsing()
         tests.testHoverMustDwellAndLeavingHides()
@@ -27,7 +28,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("19 behavior, artwork, presentation and recording tests passed")
+        print("20 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -75,6 +76,17 @@ struct BehaviorTests {
         XCTAssertEqual(TimedLyric.current(in: lines, at: 11), 0)
         XCTAssertEqual(lines[3].time, 60.25)
         XCTAssertTrue(TimedLyric.parse(nil).isEmpty)
+    }
+    func testMirrorLightHysteresis() {
+        var state = MirrorLightState()
+        XCTAssertFalse(state.update(lux: 10, imageBrightness: 200))
+        XCTAssertTrue(state.update(lux: 10, imageBrightness: 200))
+        XCTAssertTrue(state.update(lux: 45, imageBrightness: 200))
+        for _ in 0..<4 { XCTAssertTrue(state.update(lux: 100, imageBrightness: 20)) }
+        XCTAssertFalse(state.update(lux: 100, imageBrightness: 20))
+        XCTAssertFalse(state.update(lux: nil, imageBrightness: 20))
+        XCTAssertTrue(state.update(lux: nil, imageBrightness: 20))
+        XCTAssertTrue(state.update(lux: nil, imageBrightness: 200))
     }
     func testLyricsAvailability() {
         let match = LyricsRecord(trackName: "Belladonna", artistName: "UFO", duration: 265, instrumental: false, plainLyrics: "Example", syncedLyrics: nil)

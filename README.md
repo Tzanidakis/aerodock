@@ -127,3 +127,11 @@ Lyrics with timestamps highlight the current line and scroll with playback, incl
 ### 0.7.6
 
 Earbud connection and disconnection now use native Bluetooth notifications instead of waiting for a five-second system report. A lightweight one-second connection check catches missed notifications. Battery reports refresh asynchronously on connection and every 30 seconds; stale reports cannot restore a disconnected device. Actual detection speed depends on when macOS reports the Bluetooth change.
+
+## 0.8.0
+
+- Recording uses circular record, pause/resume, and finish/save icon buttons with accessible names and tooltips. Pausing keeps the same recording; finishing saves it.
+- Album covers use buffered downloads and an in-memory cache of 24 covers. Spotify and Apple Music track-change notifications trigger immediate refreshes, including when another request is finishing.
+- Rounded system numerals, circular playback controls, and refined recording controls continue the macOS styling.
+- The mirror uses the Mac's built-in ambient-light sensor when available. Below 30 lux for two samples turns the light on; above 80 lux for five samples turns it off. Camera brightness remains a fallback. The optional sensor interface is private and may change in macOS updates; it was verified on the development Mac. Sensor reading occurs only while the mirror camera is running.
+- Mirror illumination is now a broad white panel around a 120-point circular preview, with a larger expanded window to fit it. The lightbulb overrides illumination; Auto restores sensor control. Screen brightness is not modified.
