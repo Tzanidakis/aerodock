@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import IOBluetooth
 
 struct EarbudDevice: Equatable, Identifiable {
     let id: String
@@ -35,19 +36,75 @@ struct EarbudDevice: Equatable, Identifiable {
 }
 
 @MainActor
-final class EarbudMonitor {
+final class EarbudMonitor: NSObject {
     var onUpdate: (([EarbudDevice]) -> Void)?
     private var timer: Timer?
     private var refreshing = false
+    private var refreshPending = false
+    private var revision = 0
+    private var devices: [String: EarbudDevice] = [:]
+    private var connectNotification: IOBluetoothUserNotification?
+    private var disconnectNotifications: [String: IOBluetoothUserNotification] = [:]
+    private var lastBatteryRefresh = Date.distantPast
+    private func identifier(_ device: IOBluetoothDevice) -> String {
+        (device.addressString ?? "").replacingOccurrences(of: "-", with: ":").uppercased()
+    }
+    private func isHeadphone(_ device: IOBluetoothDevice) -> Bool {
+        (device.name ?? "").lowercased().contains("airpods") ||
+        (device.deviceClassMajor == kBluetoothDeviceClassMajorAudio &&
+         [kBluetoothDeviceClassMinorAudioHeadset, kBluetoothDeviceClassMinorAudioHandsFree, kBluetoothDeviceClassMinorAudioHeadphones].contains(Int(device.deviceClassMinor)))
+    }
+    private func publish() { onUpdate?(devices.values.sorted { $0.id < $1.id }) }
     func start() {
+        guard timer == nil else { return }
+        connectNotification = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(connected(_:device:)))
+        reconcile()
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.reconcile()
+                if Date().timeIntervalSince(self.lastBatteryRefresh) >= 30 { self.refresh() }
+            }
+        }
+    }
+    @objc private func connected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        guard isHeadphone(device) else { return }
+        add(device)
+    }
+    private func add(_ device: IOBluetoothDevice) {
+        let id = identifier(device)
+        guard !id.isEmpty, devices[id] == nil else { return }
+        revision += 1
+        devices[id] = EarbudDevice(id: id, name: device.name ?? "Earbuds", left: nil, right: nil, main: nil, batteryCase: nil)
+        disconnectNotifications[id] = device.register(forDisconnectNotification: self, selector: #selector(disconnected(_:device:)))
+        publish() // Show connection immediately; battery metadata follows asynchronously.
+        refresh()
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            self?.refresh()
+        }
+    }
+    @objc private func disconnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        remove(identifier(device))
+    }
+    private func remove(_ id: String) {
+        guard devices.removeValue(forKey: id) != nil else { return }
+        revision += 1
+        disconnectNotifications.removeValue(forKey: id)?.unregister()
+        publish()
+    }
+    private func reconcile() {
+        let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? []
+        for device in paired where isHeadphone(device) {
+            if device.isConnected() { add(device) } else { remove(identifier(device)) }
         }
     }
     private func refresh() {
-        guard !refreshing else { return }
+        guard !refreshing else { refreshPending = true; return }
         refreshing = true
+        lastBatteryRefresh = Date()
+        let requestRevision = revision
         Task {
             let devices = await Task.detached(priority: .utility) { () -> [EarbudDevice]? in
                 let process = Process()
@@ -65,7 +122,15 @@ final class EarbudMonitor {
                 } catch { return nil }
             }.value
             refreshing = false
-            if let devices { onUpdate?(devices) }
+            if let devices, requestRevision == revision {
+                for device in devices {
+                    let id = device.id.replacingOccurrences(of: "-", with: ":").uppercased()
+                    // Battery snapshots never resurrect a device removed by a live event.
+                    if self.devices[id] != nil { self.devices[id] = device }
+                }
+                publish()
+            }
+            if refreshPending { refreshPending = false; refresh() }
         }
     }
 }

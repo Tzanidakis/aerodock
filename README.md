@@ -98,7 +98,7 @@ The compact island remains 360 × 52 points. Opening the full AeroDock uses the 
 
 ## New in 0.7
 
-- AirPods and connected Bluetooth headphones appear with an earbud icon and circular battery gauge. A six-second connection card shows left, right, and case readings when macOS provides them. Devices are checked every five seconds; unavailable readings show a dash rather than an estimated percentage.
+- AirPods and connected Bluetooth headphones appear with an earbud icon and circular battery gauge. A six-second connection card shows left, right, and case readings when macOS provides them. Connection events update immediately, with a one-second backup check; battery readings refresh separately and unavailable readings show a dash rather than an estimated percentage.
 - Hover near the camera to reveal the compact dock; click its title to expand the floating panel. Panel size changes animate, respecting Reduce Motion.
 - Press the circular person icon to open a 100-point circular camera mirror. Press it again to close. Closing or hiding the panel stops capture. Camera access is requested on first use; no video is recorded or uploaded.
 
@@ -123,3 +123,7 @@ Lyrics lookup now falls back to catalog search when an exact match is missing. I
 ### 0.7.5
 
 Lyrics with timestamps highlight the current line and scroll with playback, including after seeking backward or forward. Pausing keeps the current line in place. Plain lyrics remain available when the provider has no timestamps. Timing comes from the matched catalog recording and may vary for remasters or alternate editions.
+
+### 0.7.6
+
+Earbud connection and disconnection now use native Bluetooth notifications instead of waiting for a five-second system report. A lightweight one-second connection check catches missed notifications. Battery reports refresh asynchronously on connection and every 30 seconds; stale reports cannot restore a disconnected device. Actual detection speed depends on when macOS reports the Bluetooth change.
