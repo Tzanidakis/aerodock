@@ -99,5 +99,9 @@ The compact island remains 360 × 52 points. Opening the full AeroDock uses the 
 ## New in 0.7
 
 - AirPods and connected Bluetooth headphones appear with an earbud icon and circular battery gauge. A six-second connection card shows left, right, and case readings when macOS provides them. Devices are checked every five seconds; unavailable readings show a dash rather than an estimated percentage.
-- Hover near the camera to open the expanded floating panel. Panel size changes animate, respecting Reduce Motion.
+- Hover near the camera to reveal the compact dock; click its title to expand the floating panel. Panel size changes animate, respecting Reduce Motion.
 - Press the circular person icon to open a 100-point circular camera mirror. Press it again to close. Closing or hiding the panel stops capture. Camera access is requested on first use; no video is recorded or uploaded.
+
+### 0.7.1
+
+The camera mirror now applies horizontal mirroring after the camera session starts. A white ring lights up when the central camera image stays dim; the lightbulb button overrides it. The light stays on until dismissed to avoid flicker. All brightness analysis stays on the Mac and no frames are saved. Hover reveals only the compact dock; click the title to expand it.

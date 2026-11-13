@@ -139,7 +139,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse) || model.presenting, inPanel: overPanel,
                           interacting: model.mirrorVisible || model.earbudNotice != nil || model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0), active: model.hasActivity)
         if old != visibility.visible {
-            if visibility.visible && model.earbudNotice == nil { model.expanded = true }
             applyVisibility()
         }
         updateCameraGlow()
