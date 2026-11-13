@@ -17,14 +17,14 @@ struct VisibilityState {
         if mode == .hidden { mode = .automatic }
         visible = true; holdUntil = now + 3; leftAt = nil
     }
-    mutating func update(now: TimeInterval, inHotspot: Bool, inPanel: Bool, interacting: Bool) {
+    mutating func update(now: TimeInterval, inHotspot: Bool, inPanel: Bool, interacting: Bool, active: Bool = false) {
         guard mode == .automatic else { visible = mode == .pinned; return }
         if visible {
             enteredAt = nil
             if inHotspot || inPanel || interacting || now < holdUntil { leftAt = nil }
             else {
                 if leftAt == nil { leftAt = now }
-                if now - (leftAt ?? now) >= 0.75 { visible = false; leftAt = nil }
+                if now - (leftAt ?? now) >= (active ? 5 : 0.75) { visible = false; leftAt = nil }
             }
         } else if inHotspot {
             if enteredAt == nil { enteredAt = now }

@@ -29,6 +29,7 @@ final class IslandPanel: NSPanel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var panel: IslandPanel!
+    private var cameraPanel: NSPanel!
     let model = IslandModel()
     private var visibility = VisibilityState()
     private var monitor: Timer?
@@ -48,6 +49,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = NSHostingView(rootView: IslandView(model: model))
+        cameraPanel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        cameraPanel.isOpaque = false
+        cameraPanel.backgroundColor = .clear
+        cameraPanel.hasShadow = false
+        cameraPanel.ignoresMouseEvents = true
+        cameraPanel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+        cameraPanel.hidesOnDeactivate = false
+        cameraPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        cameraPanel.contentView = NSHostingView(rootView: CameraGlow(model: model))
         model.resize = { [weak self] in self?.position() }
         model.changeMode = { [weak self] in self?.setMode($0) }
         NotificationCenter.default.addObserver(self, selector: #selector(position), name: NSApplication.didChangeScreenParametersNotification, object: nil)
@@ -97,20 +107,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         guard let screen = activeScreen else { return }
         let mouse = NSEvent.mouseLocation
-        let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top)
-        let hot = NSRect(x: screen.frame.midX - 120, y: top - 10, width: 240, height: screen.frame.maxY - top + 10)
+        let hot = cameraFrame(on: screen).insetBy(dx: -8, dy: -10)
         // Include the small gap from the camera to the island so crossing it never hides controls.
         let overPanel = panel.isVisible && panel.frame.insetBy(dx: -8, dy: -10).contains(mouse)
         let old = visibility.visible
-        visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse) || model.presenting || model.recorder.recording, inPanel: overPanel,
-                          interacting: model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0))
+        visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse) || model.presenting, inPanel: overPanel,
+                          interacting: model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0), active: model.hasActivity)
         if old != visibility.visible { applyVisibility() }
-        if visibility.visible && Date().timeIntervalSince(lastRefresh) >= 0.5 {
+        updateCameraGlow()
+        if Date().timeIntervalSince(lastRefresh) >= (visibility.visible ? 0.5 : 2) {
             lastRefresh = Date(); model.refreshMusic()
-            if model.expanded && model.tab == 1 && now.timeIntervalSince(lastCalendarRefresh) >= 30 {
+            if visibility.visible && model.expanded && model.tab == 1 && now.timeIntervalSince(lastCalendarRefresh) >= 30 {
                 lastCalendarRefresh = now; model.refreshCalendar()
             }
         }
+    }
+    private func cameraFrame(on screen: NSScreen) -> NSRect {
+        if screen.safeAreaInsets.top > 0,
+           let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            return NSRect(x: left.maxX, y: screen.frame.maxY - screen.safeAreaInsets.top,
+                          width: right.minX - left.maxX, height: screen.safeAreaInsets.top)
+        }
+        // A small top-center indicator on displays without a physical notch.
+        return NSRect(x: screen.frame.midX - 32, y: screen.frame.maxY - 8, width: 64, height: 8)
+    }
+    private func updateCameraGlow() {
+        let visible = visibility.mode == .automatic && !visibility.visible && model.hasActivity
+        if model.cameraGlowVisible != visible { model.cameraGlowVisible = visible }
+        if visible, let screen = activeScreen {
+            let frame = cameraFrame(on: screen).insetBy(dx: -5, dy: -5)
+            if cameraPanel.frame != frame { cameraPanel.setFrame(frame, display: true) }
+            if !cameraPanel.isVisible { cameraPanel.orderFrontRegardless() }
+        } else if cameraPanel.isVisible { cameraPanel.orderOut(nil) }
     }
     @objc func position() {
         guard let screen = activeScreen else { return }
@@ -123,6 +151,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class IslandModel: ObservableObject {
+    @Published var cameraGlowVisible = false
+    var hasActivity: Bool { recorder.recording || focus.running || playing }
+    var activityColor: Color {
+        if recorder.recording { return .red }
+        if focus.running { return .mint }
+        return artwork?.accent ?? .mint
+    }
     @Published var expanded = false
     @Published var tab = 0
     @Published var presentation = Presentation()

@@ -45,7 +45,7 @@ The glow is decorative and follows playback state, not the song's audio waveform
 - **Quick apps:** open Notes, Reminders, Calendar, Mail, Shortcuts, and Calculator. These are launch shortcuts, not embedded app views. Unavailable apps are disabled.
 - **Calendar:** the next three events in the next seven days from calendars synced to the Mac.
 
-The island disappears completely when tucked away; it does not draw into the physical camera cutout. Revealed controls sit beneath it. It uses pointer position without requiring Accessibility or Input Monitoring permissions.
+While recording, focusing, or playing music, the island tucks away five seconds after you move away. Only a narrow pulsing outline around the camera housing remains: red for recording, mint for focus, or the album color for music (in that priority order). Hover over the camera to reveal controls again. Hidden mode suppresses the glow; pinned mode and the presentation reader stay visible. Displays without a notch use a small top-center indicator. Reduce Motion disables pulsing. Revealed controls sit beneath it. It uses pointer position without requiring Accessibility or Input Monitoring permissions.
 
 Open your music app and choose **Connect Spotify** or **Connect Apple Music**. macOS may ask for Automation permission separately for each player. Choose **Connect Calendar** separately to enable upcoming events. Permissions are optional. Calendar access is read-only in AeroDock's implementation, although macOS requires full-access permission to read events. No AeroDock accounts, server, analytics, or uploads are used. Spotify artwork downloads contact the image host supplied by Spotify.
 

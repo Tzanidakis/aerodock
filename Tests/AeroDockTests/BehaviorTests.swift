@@ -21,7 +21,25 @@ struct BehaviorTests {
         tests.testPresentationEndAndReplay()
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
-        print("13 behavior, artwork, presentation and recording tests passed")
+        tests.testActivityTucksAwayAndReveals()
+        print("14 behavior, artwork, presentation and recording tests passed")
+    }
+    func testActivityTucksAwayAndReveals() {
+        var state = VisibilityState()
+        state.reveal(now: 0)
+        state.update(now: 4, inHotspot: false, inPanel: false, interacting: false, active: true)
+        state.update(now: 8.9, inHotspot: false, inPanel: false, interacting: false, active: true)
+        XCTAssertTrue(state.visible)
+        state.update(now: 9, inHotspot: false, inPanel: false, interacting: false, active: true)
+        XCTAssertFalse(state.visible)
+        state.update(now: 10, inHotspot: true, inPanel: false, interacting: false, active: true)
+        state.update(now: 10.1, inHotspot: true, inPanel: false, interacting: false, active: true)
+        XCTAssertTrue(state.visible)
+        state.update(now: 20, inHotspot: false, inPanel: true, interacting: false, active: true)
+        XCTAssertTrue(state.visible)
+        state.setMode(.hidden)
+        state.update(now: 30, inHotspot: true, inPanel: false, interacting: false, active: true)
+        XCTAssertFalse(state.visible)
     }
     func testDeletedRecordingsDisappear() {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
