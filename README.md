@@ -95,3 +95,9 @@ The Calendar tab includes a full month grid, month/year heading, weekday labels,
 The expanded island uses a wide horizontal layout, with all six tabs in one row and calendar/events side by side. Longer panels scroll within the island.
 
 The compact island remains 360 × 52 points. Opening the full AeroDock uses the same horizontal proportions in a smaller 650 × 397-point panel.
+
+## New in 0.7
+
+- AirPods and connected Bluetooth headphones appear with an earbud icon and circular battery gauge. A six-second connection card shows left, right, and case readings when macOS provides them. Devices are checked every five seconds; unavailable readings show a dash rather than an estimated percentage.
+- Hover near the camera to open the expanded floating panel. Panel size changes animate, respecting Reduce Motion.
+- Press the circular person icon to open a 100-point circular camera mirror. Press it again to close. Closing or hiding the panel stops capture. Camera access is requested on first use; no video is recorded or uploaded.

@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = IslandModel()
     private var visibility = VisibilityState()
     private var monitor: Timer?
+    private let earbuds = EarbudMonitor()
+    private var earbudNoticeUntil = Date.distantPast
     private var lastRefresh = Date.distantPast
     private var lastCalendarRefresh = Date.distantPast
     private var lastSlowTick = Date.distantPast
@@ -64,6 +66,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let saved = UserDefaults.standard.string(forKey: "visibilityMode") ?? "automatic"
         setMode(VisibilityState.Mode(rawValue: saved) ?? .automatic)
         if visibility.mode != .hidden { show() }
+        earbuds.onUpdate = { [weak self] devices in
+            guard let self else { return }
+            let previous = Set(self.model.earbudDevices.map(\.id))
+            self.model.earbudDevices = devices
+            if let connected = devices.first(where: { !previous.contains($0.id) }), self.visibility.mode != .hidden {
+                self.model.earbudNotice = connected
+                self.earbudNoticeUntil = Date().addingTimeInterval(6)
+                self.show()
+            } else if let notice = self.model.earbudNotice {
+                self.model.earbudNotice = devices.first(where: { $0.id == notice.id })
+                self.position()
+            }
+        }
+        earbuds.start()
         monitor = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
@@ -78,6 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) { model.recorder.stopForQuit() }
     func showRecorder() { show(); model.tab = 4; model.expanded = true; position() }
     func setMode(_ mode: VisibilityState.Mode) {
+        model.earbudNotice = nil
         visibility.setMode(mode)
         model.visibilityMode = mode
         UserDefaults.standard.set(mode.rawValue, forKey: "visibilityMode")
@@ -95,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             position(); panel.orderFrontRegardless(); model.refreshMusic()
         } else {
             model.expanded = false
+            model.mirrorVisible = false
             model.stopPresenting()
             panel.orderOut(nil)
         }
@@ -102,6 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private func tick() {
         let now = Date()
+        if model.earbudNotice != nil && now >= earbudNoticeUntil {
+            model.earbudNotice = nil
+            position()
+        }
         if now.timeIntervalSince(lastSlowTick) >= 0.1 {
             lastSlowTick = now
             if model.focus.running { model.focus.tick(now: now) }
@@ -115,8 +137,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let overPanel = panel.isVisible && panel.frame.insetBy(dx: -8, dy: -10).contains(mouse)
         let old = visibility.visible
         visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse) || model.presenting, inPanel: overPanel,
-                          interacting: model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0), active: model.hasActivity)
-        if old != visibility.visible { applyVisibility() }
+                          interacting: model.mirrorVisible || model.earbudNotice != nil || model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0), active: model.hasActivity)
+        if old != visibility.visible {
+            if visibility.visible && model.earbudNotice == nil { model.expanded = true }
+            applyVisibility()
+        }
         updateCameraGlow()
         if Date().timeIntervalSince(lastRefresh) >= (visibility.visible ? 0.5 : 2) {
             lastRefresh = Date(); model.refreshMusic()
@@ -145,15 +170,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func position() {
         guard let screen = activeScreen else { return }
-        let size = model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(650, screen.visibleFrame.width - 24) : 360, height: model.expanded ? 397 : 52)
+        let size = model.earbudNotice != nil ? NSSize(width: 420, height: 88) : model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(650, screen.visibleFrame.width - 24) : (model.earbudDevices.isEmpty ? 390 : 460), height: model.expanded ? 397 : 52)
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 4
-        panel.setFrame(NSRect(x: screen.frame.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height), display: true)
+        let frame = NSRect(x: screen.frame.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height)
+        guard panel.frame != frame else { return }
+        if panel.isVisible && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                panel.animator().setFrame(frame, display: true)
+            }
+        } else { panel.setFrame(frame, display: true) }
     }
 
 }
 
 @MainActor
 final class IslandModel: ObservableObject {
+    @Published var mirrorVisible = false
+    @Published var earbudDevices: [EarbudDevice] = []
+    @Published var earbudNotice: EarbudDevice?
     @Published var cameraGlowVisible = false
     var hasActivity: Bool { recorder.recording || focus.running || playing }
     var activityColor: Color {
@@ -214,7 +249,7 @@ final class IslandModel: ObservableObject {
         recorderChanges = recorder.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(player.rawValue)")
     }
-    func toggle() { scriptEditing = false; expanded.toggle(); resize?() }
+    func toggle() { scriptEditing = false; expanded.toggle(); if !expanded { mirrorVisible = false }; resize?() }
     func selectPlayer(_ value: MusicPlayer) {
         clearArtwork(); generation += 1; player = value; playing = false; playbackPosition = 0; trackDuration = 0; message = nil
         title = "Your music, a little closer."; artist = value.rawValue
@@ -363,7 +398,9 @@ struct IslandView: View {
     private var mint: Color { model.artwork?.accent ?? Color(red: 0.65, green: 0.96, blue: 0.79) }
     var body: some View {
         VStack(spacing: 0) {
-            if model.presenting {
+            if let device = model.earbudNotice {
+                EarbudConnectionView(device: device)
+            } else if model.presenting {
                 TeleprompterView(model: model)
             } else {
             HStack(spacing: 10) {
@@ -386,12 +423,27 @@ struct IslandView: View {
                     control(model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", command: "playpause")
                     control("forward.end.fill", label: "Next song", command: "next track")
                 }
+                Button {
+                    model.mirrorVisible.toggle()
+                    if model.mirrorVisible { model.expanded = true; model.resize?() }
+                } label: {
+                    Image(systemName: "person.crop.circle").foregroundStyle(model.mirrorVisible ? Color.mint : .gray)
+                }.buttonStyle(.plain).help("Open or close camera mirror").accessibilityLabel("Camera mirror")
+                if let device = model.earbudDevices.first {
+                    HStack(spacing: 5) {
+                        Image(systemName: device.icon).font(.system(size: 15))
+                        BatteryRing(level: device.level)
+                    }.help(device.name)
+                }
                 Button { model.changeMode?(.automatic) } label: {
                     Image(systemName: "eye.slash").font(.system(size: 12)).foregroundStyle(.gray)
                 }.buttonStyle(.plain).help("Tuck behind the camera and keep activity lights visible. Hover near the camera to show AeroDock again.").accessibilityLabel("Tuck AeroDock behind camera")
             }.padding(.horizontal, 16).frame(height: 52)
             if model.expanded {
                 VStack(alignment: .leading, spacing: 16) {
+                    if model.mirrorVisible {
+                        HStack { Spacer(); MirrorView(); Spacer() }
+                    }
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 6), spacing: 4) {
                         tabButton("Music", icon: "music.note", index: 0)
                         tabButton("Calendar", icon: "calendar", index: 1)

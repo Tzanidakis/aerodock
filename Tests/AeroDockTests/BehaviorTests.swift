@@ -8,6 +8,7 @@ func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T, file: StaticString = #file, li
 struct BehaviorTests {
     static func main() {
         let tests = BehaviorTests()
+        tests.testEarbudBatteryParsing()
         tests.testHoverMustDwellAndLeavingHides()
         tests.testCrossingGapAndReturningCancelsHide()
         tests.testHiddenNeverRevealsUntilExplicitlyShown()
@@ -22,7 +23,24 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("14 behavior, artwork, presentation and recording tests passed")
+        print("15 behavior, artwork, presentation and recording tests passed")
+    }
+    func testEarbudBatteryParsing() {
+        let data = Data("""
+        {"SPBluetoothDataType":[{"device_connected":[
+          {"AirPods Pro":{"device_address":"test","device_minorType":"Headphones","device_batteryLevelLeft":"0%","device_batteryLevelRight":"87%","device_batteryLevelCase":"101%"}},
+          {"Mouse":{"device_minorType":"Mouse","device_batteryLevelMain":"80%"}},
+          {"Headset":{"device_minorType":"Headset","device_batteryLevelMain":"unknown"}}
+        ],"device_not_connected":[{"AirPods":{"device_batteryLevelMain":"99%"}}]}]}
+        """.utf8)
+        let devices = try! EarbudDevice.parse(data)
+        XCTAssertEqual(devices.count, 2)
+        let airpods = devices.first { $0.id == "test" }!
+        XCTAssertEqual(airpods.level, 0)
+        XCTAssertEqual(airpods.right, 87)
+        XCTAssertTrue(airpods.batteryCase == nil)
+        XCTAssertTrue(devices.first { $0.name == "Headset" }!.level == nil)
+        XCTAssertTrue(try! EarbudDevice.parse(Data("{}".utf8)).isEmpty)
     }
     func testActivityTucksAwayAndReveals() {
         var state = VisibilityState()
