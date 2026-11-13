@@ -34,11 +34,18 @@ private struct LockScreenCard: View {
     }
 }
 
+private final class LockedActivityPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
 @MainActor
 final class LockScreenDock {
     private let panel: NSPanel
+    private let space = LockScreenSpace()
+    private var lastPresentation = Date.distantPast
     init(model: IslandModel) {
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 142), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel = LockedActivityPanel(contentRect: NSRect(x: 0, y: 0, width: 420, height: 142), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false; panel.backgroundColor = .clear
         panel.hasShadow = true; panel.hidesOnDeactivate = false
         panel.ignoresMouseEvents = true
@@ -50,10 +57,15 @@ final class LockScreenDock {
     func update(locked: Bool, model: IslandModel) {
         guard LockActivity.shouldShow(locked: locked, music: model.playing, focus: model.focus.running, recording: model.recorder.recording, presentation: model.presentation.running),
               let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main else {
-            panel.orderOut(nil); return
+            panel.orderOut(nil); space.conceal(); lastPresentation = .distantPast; return
         }
         let point = NSPoint(x: screen.frame.midX - 210, y: screen.frame.midY - 71)
         if panel.frame.origin != point { panel.setFrameOrigin(point) }
-        if !panel.isVisible { panel.orderFrontRegardless() }
+        // Locking and display wake rebuild the visible Spaces even while isVisible stays true.
+        if Date().timeIntervalSince(lastPresentation) >= 0.5 {
+            lastPresentation = Date()
+            if space.present(panel) { panel.orderFrontRegardless() }
+            else { panel.orderOut(nil) }
+        }
     }
 }

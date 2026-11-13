@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let systemLevels = SystemLevelMonitor()
     private var lockScreenDock: LockScreenDock?
     private var screenLocked = false
+    private var lastLockCheck = Date.distantPast
     private var earbudNoticeUntil = Date.distantPast
     private var lastRefresh = Date.distantPast
     private var lastCalendarRefresh = Date.distantPast
@@ -144,6 +145,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private func tick() {
         let now = Date()
+        if now.timeIntervalSince(lastLockCheck) >= 0.5 {
+            lastLockCheck = now
+            if let session = CGSessionCopyCurrentDictionary() as? [String: Any] {
+                let locked = session["CGSSessionScreenIsLocked"] as? Bool ?? false
+                if locked != screenLocked {
+                    if locked { didLock(Notification(name: NSNotification.Name("lockStateChanged"))) }
+                    else { didUnlock(Notification(name: NSNotification.Name("lockStateChanged"))) }
+                }
+            }
+        }
         if model.earbudNotice != nil && now >= earbudNoticeUntil {
             model.earbudNotice = nil
             position()

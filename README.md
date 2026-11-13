@@ -153,3 +153,9 @@ Volume and display-brightness changes show slim vertical indicators on the right
 Click or drag the vertical volume and brightness bars to adjust the corresponding system level. Bars remain visible while hovered or dragged. Both use the same position four points from the physical right screen edge; volume shifts left only while brightness is also visible on that screen.
 
 While macOS is locked and AeroDock has music playing, a running focus timer, an active recording, or a running presentation, a centered glass card shows activity status. It disappears when activity ends or the Mac unlocks. Quitting AeroDock removes all its windows. The lock card is read-only and passes clicks through to macOS; it does not change authentication. The mirror closes on lock. Lock-screen appearance needs verification on the target macOS version; it uses AppKit's canBecomeVisibleWithoutLogin window property and system lock notifications.
+
+### 0.9.2
+
+Lock-screen presentation now uses an optional SkyLight space above the lock-screen layer. Normal window visibility alone was insufficient. Lock-state polling backs up notifications, and the space is reasserted while locked to recover after display sleep/wake. The card cannot become key or main and ignores all mouse input. Its space is hidden when activity ends or the Mac unlocks. This private window API is unsupported by Apple; missing symbols fail safely and are logged locally under com.tzanidakis.aerodock / LockScreen.
+
+Window-space API reference: [SkyLightWindow](https://github.com/Lakr233/SkyLightWindow) (MIT). The lock-screen presentation approach is documented by [Nocta](https://github.com/aNasiusA/nocta/blob/main/docs/LOCK_SCREEN.md).

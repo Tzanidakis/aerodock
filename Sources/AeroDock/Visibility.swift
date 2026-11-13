@@ -60,4 +60,3 @@ struct LockActivity {
         locked && (music || focus || recording || presentation)
     }
 }
-
