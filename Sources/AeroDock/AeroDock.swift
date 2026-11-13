@@ -142,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func position() {
         guard let screen = activeScreen else { return }
-        let size = model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? 440 : 360, height: model.expanded ? 490 : 52)
+        let size = model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? min(720, screen.visibleFrame.width - 24) : 360, height: model.expanded ? 440 : 52)
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 4
         panel.setFrame(NSRect(x: screen.frame.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height), display: true)
     }
@@ -369,7 +369,7 @@ struct IslandView: View {
             }.padding(.horizontal, 16).frame(height: 52)
             if model.expanded {
                 VStack(alignment: .leading, spacing: 16) {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 6), spacing: 4) {
                         tabButton("Music", icon: "music.note", index: 0)
                         tabButton("Calendar", icon: "calendar", index: 1)
                         tabButton("Focus", icon: "timer", index: 2)
@@ -377,12 +377,14 @@ struct IslandView: View {
                         tabButton("Record", icon: "mic", index: 4)
                         tabButton("Script", icon: "text.alignleft", index: 5)
                     }
+                    ScrollView {
                     if model.tab == 0 { music }
                     else if model.tab == 1 { calendar }
                     else if model.tab == 2 { focus }
                     else if model.tab == 3 { apps }
                     else if model.tab == 4 { RecorderView(recorder: model.recorder) }
                     else { ScriptEditorView(model: model) }
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     Spacer(minLength: 0)
                     HStack {
                         Circle().fill(mint).frame(width: 5, height: 5)
@@ -491,10 +493,10 @@ struct IslandView: View {
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
     }
     var calendar: some View {
-        ScrollView {
-        VStack(alignment: .leading, spacing: 12) {
-            MonthCalendar()
+        HStack(alignment: .top, spacing: 20) {
+            MonthCalendar().frame(maxWidth: .infinity)
             Divider()
+            VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("UP NEXT").font(.system(size: 10, weight: .bold)).tracking(2).foregroundStyle(mint)
                 Spacer()
@@ -514,8 +516,8 @@ struct IslandView: View {
                 }
             }
             if !model.calendarConnected { Button("Connect Calendar", action: model.connectCalendar).buttonStyle(MintButtonStyle()) }
+            }.frame(width: 235, alignment: .leading)
         }.padding(15).frame(maxWidth: .infinity, alignment: .leading).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
-        }.frame(maxHeight: .infinity)
     }
 }
 
