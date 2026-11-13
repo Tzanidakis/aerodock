@@ -16,7 +16,47 @@ struct BehaviorTests {
         tests.testFocusUsesElapsedTimeAcrossSleepAndPause()
         tests.testArtworkRejectsInvalidBytes()
         tests.testArtworkDownsamplesAndExtractsColor()
-        print("8 behavior and artwork tests passed")
+        tests.testPresentationEmptyAndChunking()
+        tests.testPresentationPauseAndManualNavigation()
+        tests.testPresentationEndAndReplay()
+        tests.testPresentationDoesNotSkipAfterSleep()
+        print("12 behavior, artwork and presentation tests passed")
+    }
+    func testPresentationEmptyAndChunking() {
+        var p = Presentation()
+        p.load("  \n  ")
+        p.play(now: Date())
+        XCTAssertFalse(p.running)
+        p.load((1...25).map(String.init).joined(separator: " "))
+        XCTAssertEqual(p.cards.count, 3)
+        XCTAssertEqual(p.cards[0].split(separator: " ").count, 12)
+        XCTAssertEqual(p.cards.last, "25")
+    }
+    func testPresentationPauseAndManualNavigation() {
+        var p = Presentation(); p.load("Hello world\nNext thought")
+        let now = Date()
+        p.play(now: now); p.tick(now: now.addingTimeInterval(0.2))
+        XCTAssertTrue(p.progress > 0)
+        p.pause(); let progress = p.progress
+        p.tick(now: now.addingTimeInterval(10)); XCTAssertEqual(p.progress, progress)
+        p.move(1); XCTAssertEqual(p.current, "Next thought")
+        XCTAssertEqual(p.progress, 0)
+        p.move(20); XCTAssertEqual(p.index, 1)
+        p.move(-20); XCTAssertEqual(p.index, 0)
+    }
+    func testPresentationEndAndReplay() {
+        var p = Presentation(); p.load("Hello")
+        let now = Date(); p.play(now: now)
+        for n in 1...8 { p.tick(now: now.addingTimeInterval(Double(n) * 0.25)) }
+        XCTAssertTrue(p.finished); XCTAssertFalse(p.running)
+        p.play(now: now.addingTimeInterval(3))
+        XCTAssertTrue(p.running); XCTAssertEqual(p.progress, 0)
+    }
+    func testPresentationDoesNotSkipAfterSleep() {
+        var p = Presentation(); p.load("One two three four five six\nNext passage")
+        let now = Date(); p.play(now: now)
+        p.tick(now: now.addingTimeInterval(3600))
+        XCTAssertEqual(p.index, 0); XCTAssertTrue(p.progress < 0.2)
     }
     func testArtworkRejectsInvalidBytes() {
         XCTAssertTrue(CoverArt.decode(Data("not an image".utf8)) == nil)
@@ -81,7 +121,7 @@ struct BehaviorTests {
     func testBriefPassOverCameraDoesNotReveal() {
         var state = VisibilityState()
         state.update(now: 0, inHotspot: true, inPanel: false, interacting: false)
-        state.update(now: 0.1, inHotspot: false, inPanel: false, interacting: false)
+        state.update(now: 0.04, inHotspot: false, inPanel: false, interacting: false)
         state.update(now: 1, inHotspot: true, inPanel: false, interacting: false)
         XCTAssertFalse(state.visible)
     }

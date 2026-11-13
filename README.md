@@ -10,7 +10,16 @@ Download the ZIP from [Releases](https://github.com/Tzanidakis/aerodock/releases
 
 This is an **unsigned developer preview** (ad-hoc signed, not Apple notarized). macOS may prevent it from opening normally. Only install it if you trust this project; a Developer ID signed and notarized release is planned. Source builds are available below.
 
-## New in 0.3
+## New in 0.4
+
+- **Quicker interaction:** hover dwell reduced from 180 ms to 80 ms, pointer checks every 50 ms, visible music updates every 500 ms (previously 3 seconds). Play/pause changes visually immediately and is reconciled with the player. Actual playback latency still depends on the music app.
+- **Voice recorder:** open Record, press Start recording, and grant microphone access when macOS asks. Stop & save creates a local `.m4a` audio file. Use the recent list to play/export, or Files to open all recordings in Finder. The compact island and menu bar show a recording indicator and stop control. Recording continues if you explicitly hide the island; quit stops it.
+- **Presentation script:** paste text in Script, set reading pace and font size, then Play presentation. The island becomes a reader near the camera with short text cards, progress, pause/play, previous/next, and live speed adjustment. It stays visible during presentation. Space pauses/resumes when the reader has keyboard focus; Escape or Edit returns to the editor. Scripts are saved locally between launches. This is a visual teleprompter, not text-to-speech or transcription.
+- You can record your microphone while presenting. The reader includes a stop-recording control.
+
+Recordings are kept under `~/Library/Application Support/AeroDock/Recordings` and are never uploaded by AeroDock. The recorder captures the selected macOS microphone input, not screen video or direct system audio. Share/export only the recordings you choose. The teleprompter can appear in screen sharing if you share your entire display; share your presentation window when you want to keep the script private.
+
+## Album art & lighting (0.3)
 
 - **Album covers** in the compact player and expanded Music card, from Spotify and Apple Music (when their desktop apps expose artwork).
 - **Cover-inspired colors:** the player accents and edge lighting pick a color from the current album cover.
@@ -54,7 +63,7 @@ Music control requires the selected desktop app and Automation permission; brows
 
 ## Development
 
-The app lives in `Sources/AeroDock/AeroDock.swift`; bundle metadata lives in `Resources/Info.plist`. No external dependencies. Run `./scripts/test.sh` for eight deterministic hover/visibility, timer, and artwork tests (works with Command Line Tools alone). CI runs these checks, builds the app and attaches a preview ZIP as a workflow artifact.
+The app lives in `Sources/AeroDock/AeroDock.swift`; bundle metadata lives in `Resources/Info.plist`. No external dependencies. Run `./scripts/test.sh` for twelve deterministic hover/visibility, timer, artwork, and presentation tests (works with Command Line Tools alone). CI runs these checks, builds the app and attaches a preview ZIP as a workflow artifact.
 
 Feature ideas and bug reports are welcome through [Issues](https://github.com/Tzanidakis/aerodock/issues). Include your macOS version, Mac model, and steps to reproduce; please omit personal calendar details.
 

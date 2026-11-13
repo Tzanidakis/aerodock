@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-      - name: Test hover and focus behavior
+      - name: Test behavior, artwork and presentation
         run: ./scripts/test.sh
       - name: Build application
         run: ./scripts/build-app.sh

@@ -28,7 +28,7 @@ struct VisibilityState {
             }
         } else if inHotspot {
             if enteredAt == nil { enteredAt = now }
-            if now - (enteredAt ?? now) >= 0.18 { visible = true; leftAt = nil }
+            if now - (enteredAt ?? now) >= 0.08 { visible = true; leftAt = nil }
         } else { enteredAt = nil }
     }
 }

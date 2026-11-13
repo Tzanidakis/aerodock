@@ -1,18 +1,22 @@
 import AppKit
 import SwiftUI
 import EventKit
+import Combine
 
 @main
 struct AeroDockApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     var body: some Scene {
-        MenuBarExtra("AeroDock", systemImage: "rectangle.topthird.inset.filled") {
+        MenuBarExtra {
             Button("Show AeroDock") { delegate.show() }
             Button("Hide AeroDock until I show it") { delegate.setMode(.hidden) }
             Button("Auto-hide · reveal near camera") { delegate.setMode(.automatic) }
             Button("Keep AeroDock visible") { delegate.setMode(.pinned) }
+            RecorderMenu(recorder: delegate.model.recorder, show: delegate.showRecorder)
             Divider()
             Button("Quit AeroDock") { NSApp.terminate(nil) }.keyboardShortcut("q")
+        } label: {
+            RecordingStatus(recorder: delegate.model.recorder)
         }
     }
 }
@@ -29,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var visibility = VisibilityState()
     private var monitor: Timer?
     private var lastRefresh = Date.distantPast
+    private var lastCalendarRefresh = Date.distantPast
+    private var lastSlowTick = Date.distantPast
     private var activeScreen: NSScreen? {
         NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first
     }
@@ -48,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let saved = UserDefaults.standard.string(forKey: "visibilityMode") ?? "automatic"
         setMode(VisibilityState.Mode(rawValue: saved) ?? .automatic)
         if visibility.mode != .hidden { show() }
-        monitor = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+        monitor = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
         RunLoop.main.add(monitor!, forMode: .common)
@@ -57,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         show()
         return true
     }
+    func applicationWillTerminate(_ notification: Notification) { model.recorder.stopForQuit() }
+    func showRecorder() { show(); model.tab = 4; model.expanded = true; position() }
     func setMode(_ mode: VisibilityState.Mode) {
         visibility.setMode(mode)
         model.visibilityMode = mode
@@ -75,11 +83,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             position(); panel.orderFrontRegardless(); model.refreshMusic()
         } else {
             model.expanded = false
+            model.stopPresenting()
             panel.orderOut(nil)
         }
     }
     private func tick() {
-        model.focus.tick(now: Date())
+        let now = Date()
+        if now.timeIntervalSince(lastSlowTick) >= 0.1 {
+            lastSlowTick = now
+            if model.focus.running { model.focus.tick(now: now) }
+            if model.presentation.running { model.presentation.tick(now: now) }
+            model.recorder.tick()
+        }
         guard let screen = activeScreen else { return }
         let mouse = NSEvent.mouseLocation
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top)
@@ -87,17 +102,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Include the small gap from the camera to the island so crossing it never hides controls.
         let overPanel = panel.isVisible && panel.frame.insetBy(dx: -8, dy: -10).contains(mouse)
         let old = visibility.visible
-        visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse), inPanel: overPanel,
-                          interacting: model.interacting || (overPanel && NSEvent.pressedMouseButtons != 0))
+        visibility.update(now: Date.timeIntervalSinceReferenceDate, inHotspot: hot.contains(mouse) || model.presenting || model.recorder.recording, inPanel: overPanel,
+                          interacting: model.interacting || model.scriptEditing || model.recorder.requesting || (overPanel && NSEvent.pressedMouseButtons != 0))
         if old != visibility.visible { applyVisibility() }
-        if visibility.visible && Date().timeIntervalSince(lastRefresh) >= 3 {
+        if visibility.visible && Date().timeIntervalSince(lastRefresh) >= 0.5 {
             lastRefresh = Date(); model.refreshMusic()
-            if model.expanded && model.tab == 1 { model.refreshCalendar() }
+            if model.expanded && model.tab == 1 && now.timeIntervalSince(lastCalendarRefresh) >= 30 {
+                lastCalendarRefresh = now; model.refreshCalendar()
+            }
         }
     }
     @objc func position() {
         guard let screen = activeScreen else { return }
-        let size = NSSize(width: model.expanded ? 410 : 360, height: model.expanded ? 400 : 52)
+        let size = model.presenting ? NSSize(width: 500, height: 230) : NSSize(width: model.expanded ? 440 : 360, height: model.expanded ? 490 : 52)
         let top = min(screen.visibleFrame.maxY, screen.frame.maxY - screen.safeAreaInsets.top) - 4
         panel.setFrame(NSRect(x: screen.frame.midX - size.width / 2, y: top - size.height, width: size.width, height: size.height), display: true)
     }
@@ -108,6 +125,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 final class IslandModel: ObservableObject {
     @Published var expanded = false
     @Published var tab = 0
+    @Published var presentation = Presentation()
+    @Published var presenting = false
+    @Published var scriptText = UserDefaults.standard.string(forKey: "presentationScript") ?? ""
+    @Published var scriptFontSize = 25.0
+    @Published var scriptEditing = false
+    let recorder = VoiceRecorder()
+    private var recorderChanges: AnyCancellable?
+    func startPresenting() {
+        presentation.load(scriptText)
+        guard !presentation.cards.isEmpty else { return }
+        UserDefaults.standard.set(scriptText, forKey: "presentationScript")
+        scriptEditing = false; presenting = true
+        presentation.play(now: Date()); resize?()
+    }
+    func stopPresenting() {
+        guard presenting else { return }
+        presenting = false; presentation.pause(); resize?()
+    }
     @Published var visibilityMode: VisibilityState.Mode = .automatic
     @Published var focus = FocusClock()
     @Published var player = MusicPlayer(rawValue: UserDefaults.standard.string(forKey: "musicPlayer") ?? "Spotify") ?? .spotify
@@ -126,16 +161,19 @@ final class IslandModel: ObservableObject {
     var resize: (() -> Void)?
     var changeMode: ((VisibilityState.Mode) -> Void)?
     private let eventStore = EKEventStore()
-    private let musicQueue = DispatchQueue(label: "AeroDock.Music")
-    private var refreshing = false
+    private let musicQueue = DispatchQueue(label: "AeroDock.Music", qos: .userInitiated)
+    private var pendingMusicRequests = 0
+    private var commandRevision = 0
+    private var playbackFeedbackUntil = Date.distantPast
     private var generation = 0
     private let artworkLoader = ArtworkLoader()
     private var artworkTrackID = ""
     private func clearArtwork() { artworkLoader.reset(); artworkTrackID = ""; artwork = nil }
     init() {
+        recorderChanges = recorder.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(player.rawValue)")
     }
-    func toggle() { expanded.toggle(); resize?() }
+    func toggle() { scriptEditing = false; expanded.toggle(); resize?() }
     func selectPlayer(_ value: MusicPlayer) {
         clearArtwork(); generation += 1; player = value; playing = false; message = nil
         title = "Your music, a little closer."; artist = value.rawValue
@@ -164,8 +202,21 @@ final class IslandModel: ObservableObject {
             return
         }
         // Polls may be skipped, but never discard a user's playback command.
-        if command.isEmpty && refreshing { return }
-        refreshing = true
+        if command.isEmpty && pendingMusicRequests > 0 { return }
+        pendingMusicRequests += 1
+        var effectiveCommand = command
+        if !command.isEmpty {
+            commandRevision += 1
+            if command == "playpause" {
+                playing.toggle()
+                effectiveCommand = playing ? "play" : "pause"
+                playbackFeedbackUntil = Date().addingTimeInterval(0.35)
+            } else if command == "pause" {
+                playing = false; playbackFeedbackUntil = Date().addingTimeInterval(0.35)
+            }
+        }
+        let requestRevision = commandRevision
+        let playbackCommand = effectiveCommand
         let requestGeneration = generation
         let knownArtworkID = artworkTrackID
         let escapedID = knownArtworkID.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
@@ -175,7 +226,7 @@ final class IslandModel: ObservableObject {
             let source = """
             with timeout of 5 seconds
                 tell application id "\(selected.bundleID)"
-                    \(command)
+                    \(playbackCommand)
                     set playbackState to player state as string
                     try
                         set songID to id of current track as string
@@ -197,8 +248,8 @@ final class IslandModel: ObservableObject {
             let coverData = selected == .appleMusic && trackID != knownArtworkID ? result?.atIndex(5)?.data : nil
             let failed = error != nil
             DispatchQueue.main.async {
-                self.refreshing = false
-                guard self.generation == requestGeneration else { return }
+                self.pendingMusicRequests = max(0, self.pendingMusicRequests - 1)
+                guard self.generation == requestGeneration, self.commandRevision == requestRevision else { return }
                 if failed {
                     self.message = "Could not control \(selected.rawValue). Check Privacy & Security → Automation, then reconnect."
                     self.clearArtwork()
@@ -206,7 +257,9 @@ final class IslandModel: ObservableObject {
                     UserDefaults.standard.set(false, forKey: "connected.\(selected.rawValue)")
                 } else {
                     self.title = values[0].isEmpty ? "Nothing playing" : values[0]
-                    self.artist = values[1]; self.playing = values[2] == "playing"; self.message = nil
+                    self.artist = values[1]
+                    if Date() >= self.playbackFeedbackUntil { self.playing = values[2] == "playing" }
+                    self.message = nil
                     if trackID.isEmpty { self.clearArtwork() }
                     else {
                         self.artworkTrackID = trackID
@@ -252,6 +305,9 @@ struct IslandView: View {
     private var mint: Color { model.artwork?.accent ?? Color(red: 0.65, green: 0.96, blue: 0.79) }
     var body: some View {
         VStack(spacing: 0) {
+            if model.presenting {
+                TeleprompterView(model: model)
+            } else {
             HStack(spacing: 10) {
                 Button(action: model.toggle) {
                     HStack(spacing: 8) {
@@ -262,7 +318,11 @@ struct IslandView: View {
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).help(model.expanded ? "Collapse AeroDock" : "Expand AeroDock")
-                if model.musicConnected {
+                if model.recorder.recording {
+                    Text(model.recorder.time).font(.system(size: 10, design: .monospaced)).foregroundStyle(.red)
+                    Button { model.recorder.stop() } label: { Image(systemName: "stop.circle.fill").foregroundStyle(.red) }
+                        .buttonStyle(.plain).help("Stop & save voice recording").accessibilityLabel("Stop recording")
+                } else if model.musicConnected {
                     PlaybackBars(accent: mint, playing: model.playing, visible: model.isVisible)
                     control("backward.end.fill", label: "Previous song", command: "previous track")
                     control(model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", command: "playpause")
@@ -274,16 +334,20 @@ struct IslandView: View {
             }.padding(.horizontal, 16).frame(height: 52)
             if model.expanded {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 8) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                         tabButton("Music", icon: "music.note", index: 0)
                         tabButton("Calendar", icon: "calendar", index: 1)
                         tabButton("Focus", icon: "timer", index: 2)
                         tabButton("Apps", icon: "square.grid.2x2", index: 3)
+                        tabButton("Record", icon: "mic", index: 4)
+                        tabButton("Script", icon: "text.alignleft", index: 5)
                     }
                     if model.tab == 0 { music }
                     else if model.tab == 1 { calendar }
                     else if model.tab == 2 { focus }
-                    else { apps }
+                    else if model.tab == 3 { apps }
+                    else if model.tab == 4 { RecorderView(recorder: model.recorder) }
+                    else { ScriptEditorView(model: model) }
                     Spacer(minLength: 0)
                     HStack {
                         Circle().fill(mint).frame(width: 5, height: 5)
@@ -295,6 +359,7 @@ struct IslandView: View {
                     }
                 }.padding(.horizontal, 20).padding(.bottom, 18)
             }
+            }
         }
         .foregroundStyle(.white)
         .background(Color(red: 0.055, green: 0.065, blue: 0.075))
@@ -302,10 +367,13 @@ struct IslandView: View {
         .overlay(RoundedRectangle(cornerRadius: model.expanded ? 26 : 21).stroke(.white.opacity(0.12), lineWidth: 1))
         .overlay(PlaybackGlow(accent: mint, playing: model.playing, visible: model.isVisible, cornerRadius: model.expanded ? 26 : 21))
         .environment(\.colorScheme, .dark)
-        .onExitCommand { if model.expanded { model.toggle() } }
+        .onExitCommand {
+            if model.presenting { model.stopPresenting() }
+            else if model.expanded { model.toggle() }
+        }
     }
     func tabButton(_ text: String, icon: String, index: Int) -> some View {
-        Button { model.tab = index; if index == 1 { model.refreshCalendar() } } label: {
+        Button { model.scriptEditing = false; model.tab = index; if index == 1 { model.refreshCalendar() } } label: {
             Label(text, systemImage: icon).font(.system(size: 11, weight: .medium)).padding(.horizontal, 10).padding(.vertical, 8)
                 .background(model.tab == index ? Color.white.opacity(0.12) : .clear, in: Capsule())
         }.buttonStyle(.plain)
