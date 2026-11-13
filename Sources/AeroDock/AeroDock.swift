@@ -639,21 +639,21 @@ struct IslandView: View {
         }.buttonStyle(.plain).help(label).accessibilityLabel(label)
     }
     var focus: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 10) {
             Label(model.focus.finished ? "Session complete" : model.focus.active && !model.focus.running ? "Focus paused" : "Focus", systemImage: "timer")
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
-            Text(focusTime).font(.system(size: 58, weight: .light, design: .rounded))
-                .monospacedDigit().tracking(-2).foregroundStyle(.white)
+            Text(focusTime).font(.system(size: 42, weight: .light, design: .rounded))
+                .monospacedDigit().tracking(-1).foregroundStyle(.white)
                 .contentTransition(.numericText(countsDown: true))
             HStack(spacing: 4) {
                 ForEach([5, 25, 50], id: \.self) { minutes in
                     Button { model.focus.reset(minutes: minutes) } label: {
                         Text("\(minutes)").font(.system(size: 12, weight: .medium)).monospacedDigit()
-                            .padding(.horizontal, 17).padding(.vertical, 7)
+                            .padding(.horizontal, 14).padding(.vertical, 5)
                             .background(model.focus.duration == Double(minutes * 60) ? .white.opacity(0.16) : .clear, in: Capsule())
                     }.buttonStyle(.plain).disabled(model.focus.active).help("\(minutes) minutes").accessibilityLabel("\(minutes) minutes")
                 }
-            }.padding(4).background(.black.opacity(0.18), in: Capsule())
+            }.padding(3).background(.black.opacity(0.18), in: Capsule())
             HStack(spacing: 12) {
                 Stepper(value: $focusHours, in: 0...23) {
                     Text("\(focusHours) hr").monospacedDigit()
@@ -672,15 +672,15 @@ struct IslandView: View {
                     if model.focus.running { model.focus.pause(now: Date()) } else { model.focus.start(now: Date()) }
                 } label: {
                     Image(systemName: model.focus.running ? "pause.fill" : "play.fill")
-                        .font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).foregroundStyle(.mint)
+                        .font(.system(size: 15, weight: .semibold)).frame(width: 36, height: 36).foregroundStyle(.mint)
                 }.buttonStyle(DockRoundButtonStyle())
                     .help(model.focus.running ? "Pause focus" : model.focus.active && !model.focus.finished ? "Resume focus" : "Start focus")
                     .accessibilityLabel(model.focus.running ? "Pause focus" : model.focus.active && !model.focus.finished ? "Resume focus" : "Start focus")
                 Button { model.focus.stop() } label: {
-                    Image(systemName: "stop.fill").font(.system(size: 17, weight: .semibold)).frame(width: 46, height: 46)
+                    Image(systemName: "stop.fill").font(.system(size: 14, weight: .semibold)).frame(width: 36, height: 36)
                 }.buttonStyle(DockRoundButtonStyle()).help("Stop and reset focus").accessibilityLabel("Stop and reset focus")
             }
-        }.frame(maxWidth: .infinity).padding(18)
+        }.frame(maxWidth: .infinity).padding(12)
             .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.07), lineWidth: 0.5))
     }

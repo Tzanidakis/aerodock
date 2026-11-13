@@ -139,3 +139,7 @@ Earbud connection and disconnection now use native Bluetooth notifications inste
 ### 0.8.1
 
 Closing the mirror restores the dock's previous compact or expanded size. Music controls no longer include the redundant stop/pause square. Mirror lighting samples every 200 ms, switching on after two dark samples (about 0.4 seconds) and off after five bright samples (about one second), subject to sensor and camera timing. Focus actions now use icons with accessible names and tooltips; presets show only their minute values.
+
+### 0.8.2
+
+Focus uses a smaller timer, compact action buttons, and tighter spacing so the controls fit more comfortably in the dock.
