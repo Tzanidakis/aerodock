@@ -5,11 +5,11 @@
 <key>CFBundleName</key><string>AeroDock</string>
 <key>CFBundleExecutable</key><string>AeroDock</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleShortVersionString</key><string>0.2.0</string>
+<key>CFBundleVersion</key><string>2</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
-<key>NSAppleEventsUsageDescription</key><string>AeroDock controls Spotify playback and displays the current song when you connect Spotify.</string>
+<key>NSAppleEventsUsageDescription</key><string>AeroDock controls playback and displays the current song when you connect Spotify or Apple Music.</string>
 <key>NSCalendarsFullAccessUsageDescription</key><string>AeroDock displays your upcoming events. It does not create, change, or upload calendar events.</string>
 </dict></plist>
