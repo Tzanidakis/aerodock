@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 func XCTAssertTrue(_ value: Bool, file: StaticString = #file, line: UInt = #line) { precondition(value, "Expected true", file: file, line: line) }
 func XCTAssertFalse(_ value: Bool, file: StaticString = #file, line: UInt = #line) { precondition(!value, "Expected false", file: file, line: line) }
 func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T, file: StaticString = #file, line: UInt = #line) { precondition(a == b, "Values differ", file: file, line: line) }
@@ -13,7 +14,27 @@ struct BehaviorTests {
         tests.testPinnedIgnoresPointerAndAutoHideResets()
         tests.testBriefPassOverCameraDoesNotReveal()
         tests.testFocusUsesElapsedTimeAcrossSleepAndPause()
-        print("6 behavior tests passed")
+        tests.testArtworkRejectsInvalidBytes()
+        tests.testArtworkDownsamplesAndExtractsColor()
+        print("8 behavior and artwork tests passed")
+    }
+    func testArtworkRejectsInvalidBytes() {
+        XCTAssertTrue(CoverArt.decode(Data("not an image".utf8)) == nil)
+        XCTAssertTrue(CoverArt.decode(Data(repeating: 0, count: 10_000_001)) == nil)
+    }
+    func testArtworkDownsamplesAndExtractsColor() {
+        let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 512, pixelsHigh: 512, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        let pixels = bitmap.bitmapData!
+        for y in 0..<512 { for x in 0..<512 {
+            let i = y * bitmap.bytesPerRow + x * 4
+            pixels[i] = 255; pixels[i + 1] = 0; pixels[i + 2] = 0; pixels[i + 3] = 255
+        } }
+        let data = bitmap.representation(using: .png, properties: [:])!
+        let cover = CoverArt.decode(data)!
+        XCTAssertTrue(cover.image.size.width <= 256)
+        let accent = NSColor(cover.accent).usingColorSpace(.deviceRGB)!
+        XCTAssertTrue(accent.redComponent > accent.greenComponent)
+        XCTAssertTrue(accent.redComponent > 0.7)
     }
     func testHoverMustDwellAndLeavingHides() {
         var state = VisibilityState()

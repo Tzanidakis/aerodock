@@ -10,7 +10,17 @@ Download the ZIP from [Releases](https://github.com/Tzanidakis/aerodock/releases
 
 This is an **unsigned developer preview** (ad-hoc signed, not Apple notarized). macOS may prevent it from opening normally. Only install it if you trust this project; a Developer ID signed and notarized release is planned. Source builds are available below.
 
-## New in 0.2
+## New in 0.3
+
+- **Album covers** in the compact player and expanded Music card, from Spotify and Apple Music (when their desktop apps expose artwork).
+- **Cover-inspired colors:** the player accents and edge lighting pick a color from the current album cover.
+- **Animated playback glow:** a soft moving light around the island and small animated equalizer bars while playing. Pausing stops the animation and turns off the edge glow; the cover stays visible.
+- **Reduce Motion:** keeps a static glow and static bars instead. Animations stop while the island is hidden.
+- Missing/offline artwork uses a music-note fallback. Images are downsampled and downloads are limited to 10 MB. Changing player or disconnecting clears the previous artwork.
+
+The glow is decorative and follows playback state, not the song's audio waveform. AeroDock does not record the microphone or system audio. Spotify covers are fetched directly from the HTTPS artwork URL provided by Spotify; Apple Music covers are read locally from its app. No listening history is sent to an AeroDock server.
+
+## Also included (0.2)
 
 - **Auto-hide:** the island disappears when you move away. Hover around the camera/top-center edge for a moment to reveal it. The hotspot extends just below the camera, so it remains reachable. On screens without a notch, use the top center below the menu bar.
 - **Compact controls:** previous, play/pause, and next without opening the large panel. First choose Spotify or Apple Music and connect it from the Music tab. The selected app is remembered; AeroDock does not automatically switch players.
@@ -23,7 +33,7 @@ This is an **unsigned developer preview** (ad-hoc signed, not Apple notarized). 
 
 The island disappears completely when tucked away; it does not draw into the physical camera cutout. Revealed controls sit beneath it. It uses pointer position without requiring Accessibility or Input Monitoring permissions.
 
-Open your music app and choose **Connect Spotify** or **Connect Apple Music**. macOS may ask for Automation permission separately for each player. Choose **Connect Calendar** separately to enable upcoming events. Permissions are optional. Calendar access is read-only in AeroDock's implementation, although macOS requires full-access permission to read events. No accounts, server, analytics, or uploads are used by AeroDock.
+Open your music app and choose **Connect Spotify** or **Connect Apple Music**. macOS may ask for Automation permission separately for each player. Choose **Connect Calendar** separately to enable upcoming events. Permissions are optional. Calendar access is read-only in AeroDock's implementation, although macOS requires full-access permission to read events. No AeroDock accounts, server, analytics, or uploads are used. Spotify artwork downloads contact the image host supplied by Spotify.
 
 ## Build locally
 
@@ -40,18 +50,18 @@ The script builds for the current Mac architecture, creates an application bundl
 
 ## Preview limitations
 
-Music control requires the selected desktop app and Automation permission; browser players are not supported. Album artwork, launch at login, auto-updates, and user-selectable display placement are future work. The island prefers a display with a notch, otherwise the primary display. Full-screen behavior depends on macOS and the active app. Broader live playback, permission, and multiple-display testing is still needed before a stable release.
+Music control requires the selected desktop app and Automation permission; browser players are not supported. Launch at login, auto-updates, and user-selectable display placement are future work. The island prefers a display with a notch, otherwise the primary display. Full-screen behavior depends on macOS and the active app. Broader live playback, permission, and multiple-display testing is still needed before a stable release.
 
 ## Development
 
-The app lives in `Sources/AeroDock/AeroDock.swift`; bundle metadata lives in `Resources/Info.plist`. No external dependencies. Run `./scripts/test.sh` for six deterministic hover/visibility and timer tests (works with Command Line Tools alone). CI runs these checks, builds the app and attaches a preview ZIP as a workflow artifact.
+The app lives in `Sources/AeroDock/AeroDock.swift`; bundle metadata lives in `Resources/Info.plist`. No external dependencies. Run `./scripts/test.sh` for eight deterministic hover/visibility, timer, and artwork tests (works with Command Line Tools alone). CI runs these checks, builds the app and attaches a preview ZIP as a workflow artifact.
 
 Feature ideas and bug reports are welcome through [Issues](https://github.com/Tzanidakis/aerodock/issues). Include your macOS version, Mac model, and steps to reproduce; please omit personal calendar details.
 
 ## Roadmap
 
 - Developer ID signing and Apple notarization for straightforward installation
-- Album artwork and volume controls
+- Volume controls
 - Launch at login and appearance settings
 - More optional widgets
 - Intel release builds and broader accessibility/display testing

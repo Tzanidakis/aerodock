@@ -70,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyVisibility()
     }
     private func applyVisibility() {
+        model.isVisible = visibility.visible
         if visibility.visible {
             position(); panel.orderFrontRegardless(); model.refreshMusic()
         } else {
@@ -112,6 +113,8 @@ final class IslandModel: ObservableObject {
     @Published var player = MusicPlayer(rawValue: UserDefaults.standard.string(forKey: "musicPlayer") ?? "Spotify") ?? .spotify
     @Published var title = "Your music, a little closer."
     @Published var artist = "Choose a music app above"
+    @Published var isVisible = false
+    @Published var artwork: CoverArt?
     @Published var playing = false
     @Published var musicConnected = false
     @Published var message: String?
@@ -126,24 +129,28 @@ final class IslandModel: ObservableObject {
     private let musicQueue = DispatchQueue(label: "AeroDock.Music")
     private var refreshing = false
     private var generation = 0
+    private let artworkLoader = ArtworkLoader()
+    private var artworkTrackID = ""
+    private func clearArtwork() { artworkLoader.reset(); artworkTrackID = ""; artwork = nil }
     init() {
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(player.rawValue)")
     }
     func toggle() { expanded.toggle(); resize?() }
     func selectPlayer(_ value: MusicPlayer) {
-        generation += 1; player = value; playing = false; message = nil
+        clearArtwork(); generation += 1; player = value; playing = false; message = nil
         title = "Your music, a little closer."; artist = value.rawValue
         UserDefaults.standard.set(value.rawValue, forKey: "musicPlayer")
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(value.rawValue)")
         refreshMusic()
     }
     func connectMusic() {
+        clearArtwork()
         musicConnected = true
         UserDefaults.standard.set(true, forKey: "connected.\(player.rawValue)")
         runMusic("")
     }
     func disconnectMusic() {
-        generation += 1; musicConnected = false; playing = false; message = nil
+        clearArtwork(); generation += 1; musicConnected = false; playing = false; message = nil
         title = "Music disconnected"; artist = "Connect when you are ready"
         UserDefaults.standard.set(false, forKey: "connected.\(player.rawValue)")
     }
@@ -152,6 +159,7 @@ final class IslandModel: ObservableObject {
         let selected = player
         guard NSRunningApplication.runningApplications(withBundleIdentifier: selected.bundleID).first != nil else {
             message = "Open \(selected.rawValue), then play a track."
+            clearArtwork()
             title = "\(selected.rawValue) is not running"; artist = "Open the desktop app"; playing = false
             return
         }
@@ -159,6 +167,9 @@ final class IslandModel: ObservableObject {
         if command.isEmpty && refreshing { return }
         refreshing = true
         let requestGeneration = generation
+        let knownArtworkID = artworkTrackID
+        let escapedID = knownArtworkID.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let artworkScript = selected == .spotify ? "set cover to artwork url of current track" : "if songID is not \"\(escapedID)\" then set cover to raw data of artwork 1 of current track"
         musicQueue.async {
             var error: NSDictionary?
             let source = """
@@ -167,7 +178,12 @@ final class IslandModel: ObservableObject {
                     \(command)
                     set playbackState to player state as string
                     try
-                        return {name of current track, artist of current track, playbackState}
+                        set songID to id of current track as string
+                        set cover to ""
+                        try
+                            \(artworkScript)
+                        end try
+                        return {name of current track, artist of current track, playbackState, songID, cover}
                     on error
                         return {"Nothing playing", "Choose a track in \(selected.rawValue)", playbackState}
                     end try
@@ -176,17 +192,26 @@ final class IslandModel: ObservableObject {
             """
             let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
             let values = (1...3).map { result?.atIndex($0)?.stringValue ?? "" }
+            let trackID = result?.atIndex(4)?.stringValue ?? ""
+            let coverURL = selected == .spotify ? result?.atIndex(5)?.stringValue : nil
+            let coverData = selected == .appleMusic && trackID != knownArtworkID ? result?.atIndex(5)?.data : nil
             let failed = error != nil
             DispatchQueue.main.async {
                 self.refreshing = false
                 guard self.generation == requestGeneration else { return }
                 if failed {
                     self.message = "Could not control \(selected.rawValue). Check Privacy & Security → Automation, then reconnect."
+                    self.clearArtwork()
                     self.musicConnected = false; self.playing = false
                     UserDefaults.standard.set(false, forKey: "connected.\(selected.rawValue)")
                 } else {
                     self.title = values[0].isEmpty ? "Nothing playing" : values[0]
                     self.artist = values[1]; self.playing = values[2] == "playing"; self.message = nil
+                    if trackID.isEmpty { self.clearArtwork() }
+                    else {
+                        self.artworkTrackID = trackID
+                        self.artworkLoader.load(key: selected.rawValue + ":" + trackID + ":" + (coverURL ?? ""), url: coverURL, bytes: coverData) { [weak self] in self?.artwork = $0 }
+                    }
                 }
             }
         }
@@ -224,13 +249,13 @@ final class IslandModel: ObservableObject {
 
 struct IslandView: View {
     @ObservedObject var model: IslandModel
-    private let mint = Color(red: 0.65, green: 0.96, blue: 0.79)
+    private var mint: Color { model.artwork?.accent ?? Color(red: 0.65, green: 0.96, blue: 0.79) }
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Button(action: model.toggle) {
                     HStack(spacing: 8) {
-                        Image(systemName: "waveform").foregroundStyle(mint)
+                        AlbumCover(image: model.artwork?.image, accent: mint, size: 32)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(model.musicConnected ? model.title : "AeroDock").font(.system(size: 12, weight: .semibold)).lineLimit(1)
                             Text(model.focus.running ? "Focus · \(focusTime)" : (model.musicConnected ? model.player.rawValue : "Hover. Play. Get on with your day.")).font(.system(size: 9)).foregroundStyle(.gray).lineLimit(1)
@@ -238,6 +263,7 @@ struct IslandView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).help(model.expanded ? "Collapse AeroDock" : "Expand AeroDock")
                 if model.musicConnected {
+                    PlaybackBars(accent: mint, playing: model.playing, visible: model.isVisible)
                     control("backward.end.fill", label: "Previous song", command: "previous track")
                     control(model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", command: "playpause")
                     control("forward.end.fill", label: "Next song", command: "next track")
@@ -274,6 +300,7 @@ struct IslandView: View {
         .background(Color(red: 0.055, green: 0.065, blue: 0.075))
         .clipShape(RoundedRectangle(cornerRadius: model.expanded ? 26 : 21))
         .overlay(RoundedRectangle(cornerRadius: model.expanded ? 26 : 21).stroke(.white.opacity(0.12), lineWidth: 1))
+        .overlay(PlaybackGlow(accent: mint, playing: model.playing, visible: model.isVisible, cornerRadius: model.expanded ? 26 : 21))
         .environment(\.colorScheme, .dark)
         .onExitCommand { if model.expanded { model.toggle() } }
     }
@@ -289,10 +316,8 @@ struct IslandView: View {
                 ForEach(MusicPlayer.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }.pickerStyle(.segmented)
             HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16).fill(LinearGradient(colors: [mint.opacity(0.4), .teal.opacity(0.15)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    Image(systemName: "music.note").font(.system(size: 28)).foregroundStyle(mint)
-                }.frame(width: 68, height: 68)
+                AlbumCover(image: model.artwork?.image, accent: mint, size: 68)
+                    .shadow(color: mint.opacity(model.playing ? 0.35 : 0), radius: 12)
                 VStack(alignment: .leading, spacing: 5) {
                     Text(model.player.rawValue.uppercased()).font(.system(size: 9, weight: .bold)).tracking(2).foregroundStyle(mint)
                     Text(model.title).font(.system(size: 16, weight: .semibold)).lineLimit(2)
