@@ -11,6 +11,7 @@ struct BehaviorTests {
         tests.testFocusStopRestoresSelectedDuration()
         tests.testCustomFocusDuration()
         tests.testTimedLyricsFollowPlayback()
+        tests.testLockMusicPauseAndResume()
         tests.testInteractiveHUDAndLockActivity()
         tests.testLevelChanges()
         tests.testMirrorLightHysteresis()
@@ -30,7 +31,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("22 behavior, artwork, presentation and recording tests passed")
+        print("23 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -78,6 +79,22 @@ struct BehaviorTests {
         XCTAssertEqual(TimedLyric.current(in: lines, at: 11), 0)
         XCTAssertEqual(lines[3].time, 60.25)
         XCTAssertTrue(TimedLyric.parse(nil).isEmpty)
+    }
+    func testLockMusicPauseAndResume() {
+        var state = LockMusicSession()
+        state = state.updated(locked: true, playing: false)
+        XCTAssertFalse(state.visible)
+        state = state.updated(locked: true, playing: true)
+        XCTAssertTrue(state.visible)
+        state = state.updated(locked: true, playing: false)
+        XCTAssertTrue(state.visible)
+        state.stop()
+        state = state.updated(locked: true, playing: false)
+        XCTAssertFalse(state.visible)
+        state = state.updated(locked: true, playing: true)
+        XCTAssertTrue(state.visible)
+        state = state.updated(locked: false, playing: true)
+        XCTAssertFalse(state.visible)
     }
     func testInteractiveHUDAndLockActivity() {
         XCTAssertEqual(LevelHUDLayout.level(at: 0), 1)

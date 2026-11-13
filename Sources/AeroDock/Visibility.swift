@@ -60,3 +60,14 @@ struct LockActivity {
         locked && (music || focus || recording || presentation)
     }
 }
+
+struct LockMusicSession: Equatable {
+    private(set) var visible = false
+    func updated(locked: Bool, playing: Bool) -> Self {
+        var next = self
+        if !locked { next.visible = false }
+        else if playing { next.visible = true }
+        return next
+    }
+    mutating func stop() { visible = false }
+}

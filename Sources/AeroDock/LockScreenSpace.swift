@@ -2,7 +2,7 @@ import AppKit
 import Darwin
 import OSLog
 
-/// Optional WindowServer integration; only the read-only lock card is admitted here.
+/// Optional WindowServer integration; only the non-keyboard activity card is admitted here.
 /// API declarations and space levels: https://github.com/Lakr233/SkyLightWindow
 @MainActor
 final class LockScreenSpace {
