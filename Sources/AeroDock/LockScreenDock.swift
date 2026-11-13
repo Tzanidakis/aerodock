@@ -9,36 +9,43 @@ private final class LockCardState: ObservableObject {
 private struct LockScreenCard: View {
     @ObservedObject var model: IslandModel
     @ObservedObject var state: LockCardState
+    private var accent: Color { model.artwork?.accent ?? .mint }
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
                 if state.music.visible {
-                    HStack(spacing: 16) {
-                        AlbumCover(image: model.artwork?.image, accent: model.artwork?.accent ?? .mint, size: 76)
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(model.title).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+                    VStack(spacing: 14) {
+                        AlbumCover(image: model.artwork?.image, accent: accent, size: 150)
+                            .shadow(color: accent.opacity(0.38), radius: 16, y: 5)
+                        VStack(spacing: 4) {
+                            Text(model.title).font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                                .frame(maxWidth: .infinity)
                             Text(model.artist).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
-                            HStack(spacing: 10) {
-                                action("backward.end.fill", "Previous song") { model.runMusic("previous track") }
-                                action(model.playing ? "pause.fill" : "play.fill", model.playing ? "Pause music" : "Resume music") { model.runMusic("playpause") }
-                                action("forward.end.fill", "Next song") { model.runMusic("next track") }
-                                action("stop.fill", "Stop music") {
-                                    model.runMusic("pause")
-                                    state.music.stop()
-                                }
+                        }.multilineTextAlignment(.center)
+                        HStack(spacing: 12) {
+                            action("backward.end.fill", "Previous song") { model.runMusic("previous track") }
+                            Button { model.runMusic("playpause") } label: {
+                                Image(systemName: model.playing ? "pause.fill" : "play.fill")
+                                    .font(.system(size: 17, weight: .semibold)).foregroundStyle(.black)
+                                    .frame(width: 44, height: 44).background(accent, in: Circle())
+                            }.buttonStyle(.plain).help(model.playing ? "Pause music" : "Resume music")
+                                .accessibilityLabel(model.playing ? "Pause music" : "Resume music")
+                            action("forward.end.fill", "Next song") { model.runMusic("next track") }
+                            action("stop.fill", "Stop music") {
+                                model.runMusic("pause")
+                                state.music.stop()
                             }
                         }
-                        Spacer(minLength: 0)
-                    }
+                    }.frame(maxWidth: .infinity).frame(height: 276)
                 }
                 if model.focus.active && !model.focus.finished {
-                    HStack(spacing: 14) {
-                        Image(systemName: "timer").font(.system(size: 24)).foregroundStyle(.mint).frame(width: 40)
+                    HStack(spacing: state.music.visible ? 8 : 14) {
+                        Image(systemName: "timer").font(.system(size: 24)).foregroundStyle(.mint).frame(width: state.music.visible ? 32 : 40)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(model.focus.running ? "Focus" : "Focus paused").font(.system(size: 11)).foregroundStyle(.secondary)
-                            Text(timerText).font(.system(size: 28, weight: .light, design: .rounded)).monospacedDigit()
+                            Text(timerText).font(.system(size: state.music.visible ? 24 : 28, weight: .light, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
                         }
-                        Spacer()
+                        Spacer(minLength: 0)
                         action(model.focus.running ? "pause.fill" : "play.fill", model.focus.running ? "Pause focus" : "Resume focus") {
                             if model.focus.running { model.focus.pause(now: Date()) } else { model.focus.start(now: Date()) }
                         }
@@ -46,13 +53,13 @@ private struct LockScreenCard: View {
                     }
                 }
                 if model.recorder.recording {
-                    HStack(spacing: 14) {
-                        Image(systemName: "mic.fill").font(.system(size: 24)).foregroundStyle(.red).frame(width: 40)
+                    HStack(spacing: state.music.visible ? 8 : 14) {
+                        Image(systemName: "mic.fill").font(.system(size: 24)).foregroundStyle(.red).frame(width: state.music.visible ? 32 : 40)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(model.recorder.paused ? "Recording paused" : "Recording").font(.system(size: 11)).foregroundStyle(.secondary)
-                            Text(model.recorder.time).font(.system(size: 28, weight: .light, design: .rounded)).monospacedDigit()
+                            Text(model.recorder.time).font(.system(size: state.music.visible ? 24 : 28, weight: .light, design: .rounded)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
                         }
-                        Spacer()
+                        Spacer(minLength: 0)
                         action(model.recorder.paused ? "play.fill" : "pause.fill", model.recorder.paused ? "Resume recording" : "Pause recording", model.recorder.togglePause)
                         action("stop.fill", "Finish and save recording", model.recorder.stop)
                     }
@@ -60,8 +67,19 @@ private struct LockScreenCard: View {
                 if model.presentation.running { Label("Presenting", systemImage: "text.alignleft").font(.system(size: 13, weight: .medium)) }
             }.padding(22)
         }
+        .background {
+            if state.music.visible {
+                LinearGradient(colors: [accent.opacity(0.28), accent.opacity(0.06), .clear], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            }
+        }
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 30).strokeBorder(LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.08)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+        .overlay {
+            if state.music.visible {
+                PlaybackGlow(accent: accent, playing: model.playing, visible: true, cornerRadius: 30)
+            }
+        }
         .foregroundStyle(.white).environment(\.colorScheme, .dark)
     }
     private func action(_ icon: String, _ label: String, _ perform: @escaping () -> Void) -> some View {
@@ -110,8 +128,8 @@ final class LockScreenDock {
             panel.orderOut(nil); space.conceal(); lastPresentation = .distantPast; return
         }
         let rows = [state.music.visible, focus, model.recorder.recording, model.presentation.running].filter { $0 }.count
-        let contentHeight = 44 + (state.music.visible ? 108 : 0) + (focus ? 62 : 0) + (model.recorder.recording ? 62 : 0) + (model.presentation.running ? 24 : 0) + max(0, rows - 1) * 18
-        let width = min(480, screen.frame.width - 48)
+        let contentHeight = 44 + (state.music.visible ? 276 : 0) + (focus ? 62 : 0) + (model.recorder.recording ? 62 : 0) + (model.presentation.running ? 24 : 0) + max(0, rows - 1) * 18
+        let width = min(state.music.visible ? 320 : 480, screen.frame.width - 48)
         let height = min(CGFloat(contentHeight), screen.frame.height * 0.45)
         let frame = NSRect(x: screen.frame.midX - width / 2, y: screen.frame.midY - height / 2, width: width, height: height)
         if panel.frame != frame { panel.setFrame(frame, display: true) }

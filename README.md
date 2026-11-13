@@ -163,3 +163,7 @@ Window-space API reference: [SkyLightWindow](https://github.com/Lakr233/SkyLight
 ### 0.9.3
 
 The glass lock-screen card includes album artwork, song/artist, previous, play/pause, next, and stop controls. Pausing music keeps its resume control available for that lock session; Stop hides its row. Focus shows the live countdown with pause/resume and stop/reset. Active recordings show elapsed time, pause/resume, and finish/save. Multiple activities appear together, and the card resizes within the middle of the screen. Paused focus sessions remain resumable; ending all activities hides the card. The card accepts mouse clicks without becoming a key or main window, leaving password input with macOS. Playback stop pauses music and dismisses that music session because the player integrations do not expose a separate stop operation consistently.
+
+### 0.9.4
+
+The lock-screen music card is now a 320-point square: large album artwork at the top, centered song and artist below, followed by previous, play/pause, next, and stop controls. Its glass tint, artwork shadow, playback button, and edge glow use the same artwork-derived accent as the unlocked dock. Additional focus/recording activities extend the card vertically, with scrolling on shorter screens.
