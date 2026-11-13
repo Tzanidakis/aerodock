@@ -8,6 +8,8 @@ AeroDock is an early native macOS app built with SwiftUI and AppKit. Hover at th
 
 Download the ZIP from [Releases](https://github.com/Tzanidakis/aerodock/releases), unzip it, and move AeroDock.app into Applications. Requires **macOS 14 or newer**. The first preview is for **Apple silicon** Macs.
 
+The downloaded app includes AeroDock's matte mint-and-cyan application icon in every standard macOS icon size.
+
 This is an **unsigned developer preview** (ad-hoc signed, not Apple notarized). macOS may prevent it from opening normally. Only install it if you trust this project; a Developer ID signed and notarized release is planned. Source builds are available below.
 
 ## Fixed in 0.4.1
