@@ -98,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.stopPresenting()
             panel.orderOut(nil)
         }
+        updateCameraGlow()
     }
     private func tick() {
         let now = Date()
@@ -385,9 +386,9 @@ struct IslandView: View {
                     control(model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", command: "playpause")
                     control("forward.end.fill", label: "Next song", command: "next track")
                 }
-                Button { model.changeMode?(.hidden) } label: {
+                Button { model.changeMode?(.automatic) } label: {
                     Image(systemName: "eye.slash").font(.system(size: 12)).foregroundStyle(.gray)
-                }.buttonStyle(.plain).help("Hide AeroDock and keep it running. Choose Show AeroDock in the menu bar to bring it back.").accessibilityLabel("Hide AeroDock")
+                }.buttonStyle(.plain).help("Tuck behind the camera and keep activity lights visible. Hover near the camera to show AeroDock again.").accessibilityLabel("Tuck AeroDock behind camera")
             }.padding(.horizontal, 16).frame(height: 52)
             if model.expanded {
                 VStack(alignment: .leading, spacing: 16) {

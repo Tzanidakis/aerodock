@@ -151,6 +151,12 @@ struct BehaviorTests {
         XCTAssertTrue(state.visible)
         state.setMode(.automatic)
         XCTAssertFalse(state.visible)
+        // The eye button returns even a pinned island to hover-reveal mode.
+        state.update(now: 101, inHotspot: true, inPanel: false, interacting: false, active: true)
+        state.update(now: 101.1, inHotspot: true, inPanel: false, interacting: false, active: true)
+        XCTAssertTrue(state.visible)
+        state.setMode(.automatic)
+        XCTAssertFalse(state.visible)
     }
     func testBriefPassOverCameraDoesNotReveal() {
         var state = VisibilityState()

@@ -40,7 +40,8 @@ The glow is decorative and follows playback state, not the song's audio waveform
 
 - **Auto-hide:** the island disappears when you move away. Hover around the camera/top-center edge for a moment to reveal it. The hotspot extends just below the camera, so it remains reachable. On screens without a notch, use the top center below the menu bar.
 - **Compact controls:** previous, play/pause, and next without opening the large panel. First choose Spotify or Apple Music and connect it from the Music tab. The selected app is remembered; AeroDock does not automatically switch players.
-- **Hide completely:** click the crossed-out eye, or choose “Hide AeroDock until I show it” in the menu bar. Hover no longer reveals it until you choose Show AeroDock. The menu bar icon remains available.
+- **Tuck behind the camera:** click the crossed-out eye to tuck the island away immediately. Activity lights remain visible while music plays, recording runs, or a focus timer is active. Hover near the camera to bring the island back.
+- **Hide completely:** choose “Hide AeroDock until I show it” in the menu bar. Hover no longer reveals it until you choose Show AeroDock. The menu bar icon remains available.
 - **Pin:** keep the island visible; Unpin returns to auto-hide. Visibility preference survives relaunch. Launching in auto-hide briefly shows the island before it tucks away.
 - **Quit completely:** expand AeroDock and press the red power button in the footer. AeroDock stops running, including its menu-bar item and background activity. Open AeroDock again from Applications whenever you want to restart it.
 - **Apple Music and Spotify:** current song, artist, playback controls, reconnect/disconnect, and an Open App button. The expanded player shows elapsed and total time with a draggable seek bar for moving to another part of the song. The Stop control pauses playback.
