@@ -15,6 +15,7 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
     private var recorder: AVAudioRecorder?
     private var currentURL: URL?
     private var recordingFailed = false
+    private var lastFileRefresh = Date.distantPast
     private var folder: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("AeroDock/Recordings", isDirectory: true)
@@ -51,6 +52,11 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
     }
     func tick() {
+        let now = Date()
+        if now.timeIntervalSince(lastFileRefresh) >= 1 {
+            lastFileRefresh = now
+            reload()
+        }
         guard recording, let recorder else { return }
         elapsed = recorder.currentTime
         recorder.updateMeters()
@@ -96,6 +102,18 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         NSWorkspace.shared.open(file)
     }
 
+    func delete(_ file: URL) {
+        guard isAvailable(file) else { return }
+        do {
+            try FileManager.default.trashItem(at: file, resultingItemURL: nil)
+            reload()
+            message = "Recording deleted. You can recover it from Trash."
+        } catch {
+            reload()
+            message = "Could not delete this recording. Please try again."
+        }
+    }
+
     func showFolder() {
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -121,7 +139,6 @@ final class VoiceRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
 struct RecorderView: View {
     @ObservedObject var recorder: VoiceRecorder
-    private let refresh = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -148,12 +165,15 @@ struct RecorderView: View {
                         Spacer()
                         Button { recorder.play(file) } label: { Image(systemName: "play.circle") }.help("Play recording in your audio app")
                         Button { recorder.export(file) } label: { Image(systemName: "square.and.arrow.up") }.help("Export recording")
+                        Button(role: .destructive) { recorder.delete(file) } label: {
+                            Image(systemName: "trash").foregroundStyle(.red)
+                        }.help("Delete recording · move to Trash")
+                            .accessibilityLabel("Delete recording \(file.deletingPathExtension().lastPathComponent)")
                     }.buttonStyle(.plain)
                 }
             }
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
         .onAppear { recorder.reload() }
-        .onReceive(refresh) { _ in recorder.reload() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in recorder.reload() }
     }
 }
