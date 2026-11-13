@@ -73,6 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         show()
         return true
     }
+    // Hiding or closing the panel must leave the menu bar app running.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { model.recorder.stopForQuit() }
     func showRecorder() { show(); model.tab = 4; model.expanded = true; position() }
     func setMode(_ mode: VisibilityState.Mode) {
@@ -385,7 +387,7 @@ struct IslandView: View {
                 }
                 Button { model.changeMode?(.hidden) } label: {
                     Image(systemName: "eye.slash").font(.system(size: 12)).foregroundStyle(.gray)
-                }.buttonStyle(.plain).help("Hide until you choose Show AeroDock in the menu bar").accessibilityLabel("Hide AeroDock")
+                }.buttonStyle(.plain).help("Hide AeroDock and keep it running. Choose Show AeroDock in the menu bar to bring it back.").accessibilityLabel("Hide AeroDock")
             }.padding(.horizontal, 16).frame(height: 52)
             if model.expanded {
                 VStack(alignment: .leading, spacing: 16) {

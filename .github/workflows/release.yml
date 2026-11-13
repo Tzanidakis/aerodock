@@ -1,0 +1,17 @@
+name: Publish AeroDock
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/test.sh
+      - run: ./scripts/build-app.sh
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/AeroDock-macOS.zip --title "AeroDock $GITHUB_REF_NAME" --notes "The eye icon hides AeroDock while the menu bar app stays running. Choose Show AeroDock to restore it. Quit explicitly exits the app."
