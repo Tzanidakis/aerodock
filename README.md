@@ -42,6 +42,7 @@ The glow is decorative and follows playback state, not the song's audio waveform
 - **Compact controls:** previous, play/pause, and next without opening the large panel. First choose Spotify or Apple Music and connect it from the Music tab. The selected app is remembered; AeroDock does not automatically switch players.
 - **Hide completely:** click the crossed-out eye, or choose “Hide AeroDock until I show it” in the menu bar. Hover no longer reveals it until you choose Show AeroDock. The menu bar icon remains available.
 - **Pin:** keep the island visible; Unpin returns to auto-hide. Visibility preference survives relaunch. Launching in auto-hide briefly shows the island before it tucks away.
+- **Quit completely:** expand AeroDock and press the red power button in the footer. AeroDock stops running, including its menu-bar item and background activity. Open AeroDock again from Applications whenever you want to restart it.
 - **Apple Music and Spotify:** current song, artist, playback controls, reconnect/disconnect, and an Open App button. The expanded Stop control pauses playback.
 - **Focus timer:** 5-, 25-, and 50-minute sessions, pause/resume/reset. Keeps time when the island is hidden and across sleep while the app is running. Completion is shown silently; quitting resets it.
 - **Quick apps:** open Notes, Reminders, Calendar, Mail, Shortcuts, and Calculator. These are launch shortcuts, not embedded app views. Unavailable apps are disabled.

@@ -390,6 +390,17 @@ struct IslandView: View {
                         Circle().fill(mint).frame(width: 5, height: 5)
                         Text(model.visibilityMode == .pinned ? "Pinned on screen" : "Tucks away when you leave").font(.system(size: 10)).foregroundStyle(.gray)
                         Spacer()
+                        Button {
+                            NSApp.terminate(nil)
+                        } label: {
+                            Label("Quit", systemImage: "power")
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.red.opacity(0.9))
+                        .help("Quit AeroDock completely. Open AeroDock again from Applications to restart it.")
+                        .accessibilityLabel("Quit AeroDock")
+                        Divider().frame(height: 12)
                         Button(model.visibilityMode == .pinned ? "Unpin" : "Pin") {
                             model.changeMode?(model.visibilityMode == .pinned ? .automatic : .pinned)
                         }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(mint)
