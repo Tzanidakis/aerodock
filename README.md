@@ -147,3 +147,9 @@ Focus uses a smaller timer, compact action buttons, and tighter spacing so the c
 ## 0.9.0
 
 Volume and display-brightness changes show slim vertical indicators on the right edge, with a percentage and speaker/sun icon. They disappear after 1.4 seconds and respect Reduce Motion. Monitoring reads actual levels every 100 ms without intercepting keyboard input or changing settings. Volume uses the screen under the pointer; brightness appears on the affected display. Both indicators can appear together in separate lanes. macOS may also show its own indicators. Brightness requires a display supported by macOS DisplayServices; fixed-volume audio outputs and unsupported displays do not show fabricated levels.
+
+### 0.9.1
+
+Click or drag the vertical volume and brightness bars to adjust the corresponding system level. Bars remain visible while hovered or dragged. Both use the same position four points from the physical right screen edge; volume shifts left only while brightness is also visible on that screen.
+
+While macOS is locked and AeroDock has music playing, a running focus timer, an active recording, or a running presentation, a centered glass card shows activity status. It disappears when activity ends or the Mac unlocks. Quitting AeroDock removes all its windows. The lock card is read-only and passes clicks through to macOS; it does not change authentication. The mirror closes on lock. Lock-screen appearance needs verification on the target macOS version; it uses AppKit's canBecomeVisibleWithoutLogin window property and system lock notifications.

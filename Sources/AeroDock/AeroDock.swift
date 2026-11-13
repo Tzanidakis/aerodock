@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var monitor: Timer?
     private let earbuds = EarbudMonitor()
     private let systemLevels = SystemLevelMonitor()
+    private var lockScreenDock: LockScreenDock?
+    private var screenLocked = false
     private var earbudNoticeUntil = Date.distantPast
     private var lastRefresh = Date.distantPast
     private var lastCalendarRefresh = Date.distantPast
@@ -44,6 +46,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        lockScreenDock = LockScreenDock(model: model)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(didLock), name: NSNotification.Name("com.apple.screenIsLocked"), object: nil)
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(didUnlock), name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)
         panel = IslandPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -96,6 +101,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Hiding or closing the panel must leave the menu bar app running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { model.recorder.stopForQuit() }
+    @objc private func didLock(_ notification: Notification) {
+        screenLocked = true
+        model.mirrorVisible = false
+        panel.orderOut(nil)
+        cameraPanel.orderOut(nil)
+        model.isVisible = false
+        lockScreenDock?.update(locked: true, model: model)
+    }
+    @objc private func didUnlock(_ notification: Notification) {
+        screenLocked = false
+        lockScreenDock?.update(locked: false, model: model)
+        applyVisibility()
+    }
     @objc private func playerChanged(_ notification: Notification) { model.musicDidChange() }
     func showRecorder() { show(); model.tab = 4; model.expanded = true; position() }
     func setMode(_ mode: VisibilityState.Mode) {
@@ -112,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         applyVisibility()
     }
     private func applyVisibility() {
+        guard !screenLocked else { return }
         model.isVisible = visibility.visible
         if visibility.visible {
             position(); panel.orderFrontRegardless(); model.refreshMusic()
@@ -134,6 +153,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if model.focus.running { model.focus.tick(now: now) }
             if model.presentation.running { model.presentation.tick(now: now) }
             model.recorder.tick()
+        }
+        if screenLocked {
+            lockScreenDock?.update(locked: true, model: model)
+            if now.timeIntervalSince(lastRefresh) >= 1 { lastRefresh = now; model.refreshMusic() }
+            return
         }
         guard let screen = activeScreen else { return }
         let mouse = NSEvent.mouseLocation

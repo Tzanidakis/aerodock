@@ -13,6 +13,13 @@ struct LevelChangeTracker {
     }
 }
 
+struct LevelHUDLayout {
+    static func inset(brightness: Bool, bothVisibleOnSameScreen: Bool) -> CGFloat {
+        !brightness && bothVisibleOnSameScreen ? 72 : 4
+    }
+    static func level(at y: Double) -> Double { min(1, max(0, 1 - y / 126)) }
+}
+
 final class SystemLevelReader {
     private typealias GetBrightness = @convention(c) (UInt32, UnsafeMutablePointer<Float>) -> Int32
     private let displayServices = dlopen("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices", RTLD_LAZY)
@@ -21,6 +28,30 @@ final class SystemLevelReader {
         var value: Float = 0
         guard unsafeBitCast(symbol, to: GetBrightness.self)(display, &value) == 0 else { return nil }
         return Double(value)
+    }
+    func setBrightness(_ value: Double, display: UInt32) -> Bool {
+        typealias SetBrightness = @convention(c) (UInt32, Float) -> Int32
+        guard let displayServices, let symbol = dlsym(displayServices, "DisplayServicesSetBrightness") else { return false }
+        return unsafeBitCast(symbol, to: SetBrightness.self)(display, Float(min(1, max(0, value)))) == 0
+    }
+    private func write<T>(_ object: UInt32, selector: UInt32, element: UInt32 = 0, value: T) -> Bool {
+        var address = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioDevicePropertyScopeOutput, mElement: element)
+        var settable: DarwinBoolean = false
+        guard AudioObjectIsPropertySettable(object, &address, &settable) == noErr, settable.boolValue else { return false }
+        var copy = value
+        return withUnsafePointer(to: &copy) { AudioObjectSetPropertyData(object, &address, 0, nil, UInt32(MemoryLayout<T>.size), $0) == noErr }
+    }
+    func setVolume(_ value: Double) -> Bool {
+        guard let output = volume() else { return false }
+        let level = Float(min(1, max(0, value)))
+        var success = write(output.device, selector: kAudioDevicePropertyVolumeScalar, value: level)
+        if !success {
+            let left = write(output.device, selector: kAudioDevicePropertyVolumeScalar, element: 1, value: level)
+            let right = write(output.device, selector: kAudioDevicePropertyVolumeScalar, element: 2, value: level)
+            success = left || right
+        }
+        if success && level > 0 { _ = write(output.device, selector: kAudioDevicePropertyMute, value: UInt32(0)) }
+        return success
     }
     private func read<T>(_ object: AudioObjectID, selector: AudioObjectPropertySelector, scope: AudioObjectPropertyScope, element: UInt32 = 0, initial: T) -> T? {
         var address = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: element)
@@ -46,12 +77,16 @@ final class SystemLevelReader {
 @MainActor
 private final class LevelHUDModel: ObservableObject {
     @Published var percent = 0
+    var adjust: ((Double) -> Void)?
+    var interaction: ((Bool) -> Void)?
     let brightness: Bool
     init(brightness: Bool) { self.brightness = brightness }
 }
 
 private struct LevelHUDView: View {
     @ObservedObject var model: LevelHUDModel
+    @State private var hovering = false
+    @State private var dragging = false
     var body: some View {
         VStack(spacing: 12) {
             Text("\(model.percent)").font(.system(size: 12, weight: .semibold, design: .rounded)).monospacedDigit()
@@ -59,12 +94,21 @@ private struct LevelHUDView: View {
                 Capsule().fill(.white.opacity(0.15))
                 Capsule().fill(.white).frame(height: 126 * Double(model.percent) / 100)
             }.frame(width: 10, height: 126).clipShape(Capsule())
+                .frame(width: 44, height: 126).contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onChanged { event in
+                    dragging = true; model.interaction?(true)
+                    model.adjust?(LevelHUDLayout.level(at: event.location.y))
+                }.onEnded { _ in dragging = false; model.interaction?(hovering) })
+                .accessibilityAdjustableAction { direction in
+                    model.adjust?(min(1, max(0, Double(model.percent) / 100 + (direction == .increment ? 0.05 : -0.05))))
+                }
             Image(systemName: model.brightness ? "sun.max.fill" : model.percent == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 15, weight: .medium)).frame(height: 20)
         }.padding(.vertical, 17).frame(width: 60)
             .foregroundStyle(.white)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 29, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 29).strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+            .onHover { inside in hovering = inside; model.interaction?(inside || dragging) }
             .environment(\.colorScheme, .dark)
             .accessibilityLabel("\(model.brightness ? "Brightness" : "Volume") \(model.percent) percent")
     }
@@ -74,29 +118,48 @@ private struct LevelHUDView: View {
 private final class LevelHUD {
     private let model: LevelHUDModel
     private let panel: NSPanel
+    private(set) var screen: NSScreen?
+    var isVisible: Bool { panel.isVisible }
+    var visibilityChanged: (() -> Void)?
+    var adjust: ((Double) -> Void)?
+    private var interacting = false
     private var dismissal: Task<Void, Never>?
     init(brightness: Bool) {
         model = LevelHUDModel(brightness: brightness)
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 60, height: 224), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false; panel.backgroundColor = .clear
         panel.hasShadow = true; panel.hidesOnDeactivate = false
-        panel.ignoresMouseEvents = true
+        panel.ignoresMouseEvents = false
         panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.contentView = NSHostingView(rootView: LevelHUDView(model: model))
+        model.adjust = { [weak self] value in self?.adjust?(value) }
+        model.interaction = { [weak self] active in
+            guard let self else { return }
+            self.interacting = active
+            if active { self.dismissal?.cancel() } else { self.scheduleDismissal() }
+        }
     }
     func show(percent: Int, screen: NSScreen) {
         dismissal?.cancel()
         model.percent = percent
-        let bounds = screen.visibleFrame
-        // Separate lanes keep simultaneous volume and brightness changes readable.
-        let inset: CGFloat = model.brightness ? 20 : 92
-        panel.setFrameOrigin(NSPoint(x: bounds.maxX - inset - 60, y: bounds.midY - 112))
+        self.screen = screen
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0
             panel.animator().alphaValue = 1
         }, completionHandler: nil)
         panel.orderFrontRegardless()
+        visibilityChanged?()
+        scheduleDismissal()
+    }
+    func position(inset: CGFloat) {
+        guard let screen else { return }
+        let bounds = screen.frame
+        panel.setFrameOrigin(NSPoint(x: bounds.maxX - inset - 60, y: bounds.midY - 112))
+    }
+    private func scheduleDismissal() {
+        dismissal?.cancel()
+        guard !interacting else { return }
         dismissal = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: 1_400_000_000) } catch { return }
             guard let self else { return }
@@ -108,6 +171,7 @@ private final class LevelHUD {
                 do { try await Task.sleep(nanoseconds: 220_000_000) } catch { return }
             }
             self.panel.orderOut(nil)
+            self.visibilityChanged?()
         }
     }
 }
@@ -122,11 +186,28 @@ final class SystemLevelMonitor {
     private var previousDevice: UInt32?
     func start() {
         guard timer == nil else { return }
+        volumeHUD.visibilityChanged = { [weak self] in self?.layout() }
+        brightnessHUD.visibilityChanged = { [weak self] in self?.layout() }
+        volumeHUD.adjust = { [weak self] value in
+            guard let self, self.reader.setVolume(value), let actual = self.reader.volume(), let screen = self.volumeHUD.screen else { return }
+            self.volumeHUD.show(percent: Int((actual.level * 100).rounded()), screen: screen)
+        }
+        brightnessHUD.adjust = { [weak self] value in
+            guard let self, let screen = self.brightnessHUD.screen,
+                  let display = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? UInt32,
+                  self.reader.setBrightness(value, display: display), let actual = self.reader.brightness(display: display) else { return }
+            self.brightnessHUD.show(percent: Int((actual * 100).rounded()), screen: screen)
+        }
         sample()
         timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.sample() }
         }
         RunLoop.main.add(timer!, forMode: .common)
+    }
+    private func layout() {
+        let together = volumeHUD.isVisible && brightnessHUD.isVisible && volumeHUD.screen == brightnessHUD.screen
+        volumeHUD.position(inset: LevelHUDLayout.inset(brightness: false, bothVisibleOnSameScreen: together))
+        brightnessHUD.position(inset: LevelHUDLayout.inset(brightness: true, bothVisibleOnSameScreen: together))
     }
     private func sample() {
         let screens = NSScreen.screens

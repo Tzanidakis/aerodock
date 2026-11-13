@@ -54,3 +54,10 @@ struct FocusClock {
     mutating func stop() { deadline = nil; remaining = duration; finished = false; active = false }
     mutating func reset(minutes: Int) { duration = Double(min(1439, max(1, minutes)) * 60); stop() }
 }
+
+struct LockActivity {
+    static func shouldShow(locked: Bool, music: Bool, focus: Bool, recording: Bool, presentation: Bool) -> Bool {
+        locked && (music || focus || recording || presentation)
+    }
+}
+

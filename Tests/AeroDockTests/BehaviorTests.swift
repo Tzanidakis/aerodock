@@ -11,6 +11,7 @@ struct BehaviorTests {
         tests.testFocusStopRestoresSelectedDuration()
         tests.testCustomFocusDuration()
         tests.testTimedLyricsFollowPlayback()
+        tests.testInteractiveHUDAndLockActivity()
         tests.testLevelChanges()
         tests.testMirrorLightHysteresis()
         tests.testLyricsAvailability()
@@ -29,7 +30,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("21 behavior, artwork, presentation and recording tests passed")
+        print("22 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -77,6 +78,19 @@ struct BehaviorTests {
         XCTAssertEqual(TimedLyric.current(in: lines, at: 11), 0)
         XCTAssertEqual(lines[3].time, 60.25)
         XCTAssertTrue(TimedLyric.parse(nil).isEmpty)
+    }
+    func testInteractiveHUDAndLockActivity() {
+        XCTAssertEqual(LevelHUDLayout.level(at: 0), 1)
+        XCTAssertEqual(LevelHUDLayout.level(at: 63), 0.5)
+        XCTAssertEqual(LevelHUDLayout.level(at: 200), 0)
+        XCTAssertEqual(LevelHUDLayout.inset(brightness: false, bothVisibleOnSameScreen: false), 4)
+        XCTAssertEqual(LevelHUDLayout.inset(brightness: true, bothVisibleOnSameScreen: false), 4)
+        XCTAssertEqual(LevelHUDLayout.inset(brightness: false, bothVisibleOnSameScreen: true), 72)
+        XCTAssertFalse(LockActivity.shouldShow(locked: true, music: false, focus: false, recording: false, presentation: false))
+        XCTAssertFalse(LockActivity.shouldShow(locked: false, music: true, focus: true, recording: true, presentation: true))
+        for index in 0..<4 {
+            XCTAssertTrue(LockActivity.shouldShow(locked: true, music: index == 0, focus: index == 1, recording: index == 2, presentation: index == 3))
+        }
     }
     func testLevelChanges() {
         var tracker = LevelChangeTracker()
