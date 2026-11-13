@@ -109,3 +109,9 @@ The camera mirror now applies horizontal mirroring after the camera session star
 ### 0.7.2
 
 Active focus sessions show a countdown, pause/resume, and stop controls directly in the compact dock. Paused sessions keep their controls visible. Stop restores the selected 5-, 25-, or 50-minute duration. The focus page uses rounded system numerals, a segmented duration picker, circular compact controls, and capsule buttons, with a subtle material background throughout the dock.
+
+### 0.7.3
+
+Focus supports custom hours and minutes, from 1 minute to 23 hours 59 minutes. Choose the values and press Set duration before starting. Stop restores that duration.
+
+The expanded Music page displays lyrics below playback controls only when LRCLIB has lyrics for the current song. Opening the Music page sends the current song title, artist, and duration to https://lrclib.net for matching. Instrumental tracks, missing results, and network failures show no lyrics section. Track changes clear old lyrics. Lyrics availability depends on LRCLIB and is separate from Spotify or Apple Music's own catalog.

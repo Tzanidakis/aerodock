@@ -221,6 +221,8 @@ final class IslandModel: ObservableObject {
     @Published var title = "Your music, a little closer."
     @Published var artist = "Choose a music app above"
     @Published var isVisible = false
+    @Published var lyrics: String?
+    private let lyricsLoader = LyricsLoader()
     @Published var artwork: CoverArt?
     @Published var playing = false
     @Published var playbackPosition: Double = 0
@@ -243,7 +245,7 @@ final class IslandModel: ObservableObject {
     private var generation = 0
     private let artworkLoader = ArtworkLoader()
     private var artworkTrackID = ""
-    private func clearArtwork() { artworkLoader.reset(); artworkTrackID = ""; artwork = nil }
+    private func clearArtwork() { lyricsLoader.reset(); lyrics = nil; artworkLoader.reset(); artworkTrackID = ""; artwork = nil }
     init() {
         recorderChanges = recorder.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         musicConnected = UserDefaults.standard.bool(forKey: "connected.\(player.rawValue)")
@@ -346,6 +348,10 @@ final class IslandModel: ObservableObject {
                     self.message = nil
                     if trackID.isEmpty { self.clearArtwork() }
                     else {
+                        if self.artworkTrackID != trackID { self.lyricsLoader.reset(); self.lyrics = nil }
+                        if self.isVisible && self.expanded && self.tab == 0 {
+                            self.lyricsLoader.load(title: self.title, artist: self.artist, duration: duration) { [weak self] in self?.lyrics = $0 }
+                        }
                         self.artworkTrackID = trackID
                         self.artworkLoader.load(key: selected.rawValue + ":" + trackID + ":" + (coverURL ?? ""), url: coverURL, bytes: coverData) { [weak self] in self?.artwork = $0 }
                     }
@@ -394,6 +400,8 @@ final class IslandModel: ObservableObject {
 
 struct IslandView: View {
     @ObservedObject var model: IslandModel
+    @State private var focusHours = 0
+    @State private var focusMinutes = 25
     private var mint: Color { model.artwork?.accent ?? Color(red: 0.65, green: 0.96, blue: 0.79) }
     var body: some View {
         VStack(spacing: 0) {
@@ -571,6 +579,17 @@ struct IslandView: View {
                 Spacer()
                 if model.musicConnected { Button("Disconnect", action: model.disconnectMusic) }
             }.buttonStyle(.plain).font(.system(size: 10)).foregroundStyle(mint)
+            if let lyrics = model.lyrics {
+                Divider().overlay(.white.opacity(0.08))
+                HStack {
+                    Label("Lyrics", systemImage: "text.quote").font(.system(size: 12, weight: .semibold))
+                    Spacer()
+                    Link("LRCLIB", destination: URL(string: "https://lrclib.net")!).font(.system(size: 10)).foregroundStyle(.secondary)
+                }
+                Text(lyrics).font(.system(size: 14, weight: .medium)).lineSpacing(6)
+                    .foregroundStyle(.white.opacity(0.85)).frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            }
         }.padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
     }
     func playbackTime(_ value: Double) -> String {
@@ -586,6 +605,7 @@ struct IslandView: View {
     }
     var focusTime: String {
         let seconds = Int(ceil(model.focus.remaining))
+        if seconds >= 3600 { return String(format: "%d:%02d:%02d", seconds / 3600, (seconds / 60) % 60, seconds % 60) }
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
     func focusControl(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
@@ -612,6 +632,17 @@ struct IslandView: View {
                     }.buttonStyle(.plain).disabled(model.focus.active)
                 }
             }.padding(4).background(.black.opacity(0.18), in: Capsule())
+            HStack(spacing: 12) {
+                Stepper(value: $focusHours, in: 0...23) {
+                    Text("\(focusHours) hr").monospacedDigit()
+                }.frame(width: 105)
+                Stepper(value: $focusMinutes, in: 0...59) {
+                    Text("\(focusMinutes) min").monospacedDigit()
+                }.frame(width: 115)
+                Button("Set duration") { model.focus.reset(minutes: focusHours * 60 + focusMinutes) }
+                    .buttonStyle(.bordered).disabled(focusHours == 0 && focusMinutes == 0)
+            }.font(.system(size: 12)).disabled(model.focus.active)
+                .accessibilityElement(children: .contain).accessibilityLabel("Custom focus duration")
             HStack(spacing: 10) {
                 Button {
                     if model.focus.running { model.focus.pause(now: Date()) } else { model.focus.start(now: Date()) }

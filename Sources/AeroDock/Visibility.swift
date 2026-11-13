@@ -52,5 +52,5 @@ struct FocusClock {
     }
     mutating func pause(now: Date) { tick(now: now); deadline = nil }
     mutating func stop() { deadline = nil; remaining = duration; finished = false; active = false }
-    mutating func reset(minutes: Int) { duration = Double(minutes * 60); stop() }
+    mutating func reset(minutes: Int) { duration = Double(min(1439, max(1, minutes)) * 60); stop() }
 }

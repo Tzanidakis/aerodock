@@ -9,6 +9,8 @@ struct BehaviorTests {
     static func main() {
         let tests = BehaviorTests()
         tests.testFocusStopRestoresSelectedDuration()
+        tests.testCustomFocusDuration()
+        tests.testLyricsAvailability()
         tests.testEarbudBatteryParsing()
         tests.testHoverMustDwellAndLeavingHides()
         tests.testCrossingGapAndReturningCancelsHide()
@@ -24,7 +26,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("16 behavior, artwork, presentation and recording tests passed")
+        print("18 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -46,6 +48,26 @@ struct BehaviorTests {
         XCTAssertTrue(clock.finished)
         clock.start(now: now.addingTimeInterval(400))
         XCTAssertEqual(clock.remaining, 300)
+    }
+    func testCustomFocusDuration() {
+        var clock = FocusClock()
+        clock.reset(minutes: 90)
+        XCTAssertEqual(clock.remaining, 5400)
+        clock.start(now: Date(timeIntervalSinceReferenceDate: 0))
+        clock.pause(now: Date(timeIntervalSinceReferenceDate: 60))
+        XCTAssertEqual(clock.remaining, 5340)
+        clock.stop()
+        XCTAssertEqual(clock.remaining, 5400)
+        clock.reset(minutes: 0)
+        XCTAssertEqual(clock.remaining, 60)
+        clock.reset(minutes: 9999)
+        XCTAssertEqual(clock.remaining, 1439 * 60)
+    }
+    func testLyricsAvailability() {
+        XCTAssertTrue(LyricsRecord(instrumental: true, plainLyrics: "ignored", syncedLyrics: nil).text == nil)
+        XCTAssertTrue(LyricsRecord(instrumental: false, plainLyrics: "  ", syncedLyrics: nil).text == nil)
+        XCTAssertEqual(LyricsRecord(instrumental: false, plainLyrics: "Example line", syncedLyrics: nil).text, "Example line")
+        XCTAssertEqual(LyricsRecord(instrumental: false, plainLyrics: nil, syncedLyrics: "[ar:Example]\n[00:01.00]Example line\n[00:02.50]Another line").text, "Example line\nAnother line")
     }
     func testEarbudBatteryParsing() {
         let data = Data("""
