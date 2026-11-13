@@ -405,10 +405,21 @@ struct IslandView: View {
             HStack(spacing: 10) {
                 Button(action: model.toggle) {
                     HStack(spacing: 8) {
-                        AlbumCover(image: model.artwork?.image, accent: mint, size: 32)
+                        if model.focus.active {
+                            Image(systemName: "timer").font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(.mint).frame(width: 32, height: 32)
+                                .background(.mint.opacity(0.12), in: Circle())
+                        } else { AlbumCover(image: model.artwork?.image, accent: mint, size: 32) }
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(model.musicConnected ? model.title : "AeroDock").font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                            Text(model.focus.running ? "Focus · \(focusTime)" : (model.musicConnected ? model.player.rawValue : "Hover. Play. Get on with your day.")).font(.system(size: 9)).foregroundStyle(.gray).lineLimit(1)
+                            if model.focus.active {
+                                Text(focusTime).font(.system(size: 21, weight: .medium, design: .rounded)).monospacedDigit()
+                                Text(model.focus.finished ? "Focus complete" : model.focus.running ? "Focus" : "Paused")
+                                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                            } else {
+                                Text(model.musicConnected ? model.title : "AeroDock").font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                                Text(model.musicConnected ? model.player.rawValue : "Hover. Play. Get on with your day.")
+                                    .font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(1)
+                            }
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }.buttonStyle(.plain).help(model.expanded ? "Collapse AeroDock" : "Expand AeroDock")
@@ -416,7 +427,13 @@ struct IslandView: View {
                     Text(model.recorder.time).font(.system(size: 10, design: .monospaced)).foregroundStyle(.red)
                     Button { model.recorder.stop() } label: { Image(systemName: "stop.circle.fill").foregroundStyle(.red) }
                         .buttonStyle(.plain).help("Stop & save voice recording").accessibilityLabel("Stop recording")
-                } else if model.musicConnected {
+                }
+                if model.focus.active {
+                    focusControl(model.focus.running ? "pause.fill" : "play.fill", label: model.focus.running ? "Pause focus" : "Resume focus") {
+                        if model.focus.running { model.focus.pause(now: Date()) } else { model.focus.start(now: Date()) }
+                    }
+                    focusControl("stop.fill", label: "Stop and reset focus") { model.focus.stop() }
+                } else if model.musicConnected && !model.recorder.recording {
                     PlaybackBars(accent: mint, playing: model.playing, visible: model.isVisible)
                     control("backward.end.fill", label: "Previous song", command: "previous track")
                     control(model.playing ? "pause.fill" : "play.fill", label: model.playing ? "Pause" : "Play", command: "playpause")
@@ -484,7 +501,8 @@ struct IslandView: View {
             }
         }
         .foregroundStyle(.white)
-        .background(Color(red: 0.055, green: 0.065, blue: 0.075))
+        .background(.ultraThinMaterial)
+        .background(Color(red: 0.045, green: 0.05, blue: 0.06))
         .clipShape(RoundedRectangle(cornerRadius: model.expanded ? 26 : 21))
         .overlay(RoundedRectangle(cornerRadius: model.expanded ? 26 : 21).stroke(.white.opacity(0.12), lineWidth: 1))
         .overlay(PlaybackGlow(accent: mint, playing: model.playing, visible: model.isVisible, cornerRadius: model.expanded ? 26 : 21))
@@ -570,23 +588,46 @@ struct IslandView: View {
         let seconds = Int(ceil(model.focus.remaining))
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
+    func focusControl(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+                .frame(width: 30, height: 30)
+                .background(.white.opacity(0.10), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.10), lineWidth: 0.5))
+        }.buttonStyle(.plain).help(label).accessibilityLabel(label)
+    }
     var focus: some View {
-        VStack(spacing: 14) {
-            Text(model.focus.finished ? "Nice work. Take a breath." : "A little space to concentrate.").font(.system(size: 12)).foregroundStyle(.gray)
-            Text(focusTime).font(.system(size: 48, weight: .light, design: .rounded)).monospacedDigit().foregroundStyle(mint)
-            HStack {
+        VStack(spacing: 16) {
+            Label(model.focus.finished ? "Session complete" : model.focus.active && !model.focus.running ? "Focus paused" : "Focus", systemImage: "timer")
+                .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+            Text(focusTime).font(.system(size: 58, weight: .light, design: .rounded))
+                .monospacedDigit().tracking(-2).foregroundStyle(.white)
+                .contentTransition(.numericText(countsDown: true))
+            HStack(spacing: 4) {
                 ForEach([5, 25, 50], id: \.self) { minutes in
-                    Button("\(minutes) min") { model.focus.reset(minutes: minutes) }.disabled(model.focus.running)
+                    Button { model.focus.reset(minutes: minutes) } label: {
+                        Text("\(minutes) min").font(.system(size: 12, weight: .medium)).monospacedDigit()
+                            .padding(.horizontal, 17).padding(.vertical, 7)
+                            .background(model.focus.duration == Double(minutes * 60) ? .white.opacity(0.16) : .clear, in: Capsule())
+                    }.buttonStyle(.plain).disabled(model.focus.active)
                 }
-            }.buttonStyle(.bordered)
-            HStack {
-                Button(model.focus.running ? "Pause" : "Start focus") {
+            }.padding(4).background(.black.opacity(0.18), in: Capsule())
+            HStack(spacing: 10) {
+                Button {
                     if model.focus.running { model.focus.pause(now: Date()) } else { model.focus.start(now: Date()) }
+                } label: {
+                    Label(model.focus.running ? "Pause" : model.focus.active && !model.focus.finished ? "Resume" : "Start focus", systemImage: model.focus.running ? "pause.fill" : "play.fill")
+                        .frame(minWidth: 105)
                 }.buttonStyle(MintButtonStyle())
-                Button("Reset") { model.focus.reset(minutes: 25) }.buttonStyle(.bordered)
+                Button { model.focus.stop() } label: {
+                    Label("Stop", systemImage: "stop.fill").font(.system(size: 12, weight: .semibold))
+                        .padding(.horizontal, 18).padding(.vertical, 9)
+                        .background(.white.opacity(0.09), in: Capsule())
+                }.buttonStyle(.plain).help("Stop and reset to the selected duration")
             }
-            Text("Keeps time while AeroDock is hidden. No notification sounds.").font(.system(size: 10)).foregroundStyle(.gray)
-        }.frame(maxWidth: .infinity).padding(15).background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
+        }.frame(maxWidth: .infinity).padding(18)
+            .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.07), lineWidth: 0.5))
     }
     var apps: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -654,8 +695,8 @@ struct MintButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
-            .padding(.horizontal, 13).padding(.vertical, 8)
+            .padding(.horizontal, 18).padding(.vertical, 9)
             .foregroundStyle(.black)
-            .background(Color(red: 0.65, green: 0.96, blue: 0.79).opacity(configuration.isPressed ? 0.75 : 1), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color(red: 0.65, green: 0.96, blue: 0.79).opacity(configuration.isPressed ? 0.75 : 1), in: Capsule())
     }
 }

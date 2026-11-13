@@ -34,12 +34,15 @@ struct VisibilityState {
 }
 
 struct FocusClock {
+    private(set) var duration: TimeInterval = 25 * 60
+    private(set) var active = false
     var remaining: TimeInterval = 25 * 60
     var deadline: Date?
     var finished = false
     var running: Bool { deadline != nil }
     mutating func start(now: Date) {
-        if remaining <= 0 { remaining = 25 * 60 }
+        if remaining <= 0 { remaining = duration }
+        active = true
         finished = false; deadline = now.addingTimeInterval(remaining)
     }
     mutating func tick(now: Date) {
@@ -48,5 +51,6 @@ struct FocusClock {
         if remaining == 0 { self.deadline = nil; finished = true }
     }
     mutating func pause(now: Date) { tick(now: now); deadline = nil }
-    mutating func reset(minutes: Int) { deadline = nil; remaining = Double(minutes * 60); finished = false }
+    mutating func stop() { deadline = nil; remaining = duration; finished = false; active = false }
+    mutating func reset(minutes: Int) { duration = Double(minutes * 60); stop() }
 }

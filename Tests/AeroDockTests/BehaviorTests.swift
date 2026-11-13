@@ -8,6 +8,7 @@ func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T, file: StaticString = #file, li
 struct BehaviorTests {
     static func main() {
         let tests = BehaviorTests()
+        tests.testFocusStopRestoresSelectedDuration()
         tests.testEarbudBatteryParsing()
         tests.testHoverMustDwellAndLeavingHides()
         tests.testCrossingGapAndReturningCancelsHide()
@@ -23,7 +24,28 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("15 behavior, artwork, presentation and recording tests passed")
+        print("16 behavior, artwork, presentation and recording tests passed")
+    }
+    func testFocusStopRestoresSelectedDuration() {
+        var clock = FocusClock()
+        let now = Date(timeIntervalSinceReferenceDate: 1000)
+        clock.reset(minutes: 5)
+        clock.start(now: now)
+        clock.pause(now: now.addingTimeInterval(30))
+        XCTAssertTrue(clock.active)
+        XCTAssertFalse(clock.running)
+        XCTAssertEqual(clock.remaining, 270)
+        clock.start(now: now.addingTimeInterval(100))
+        XCTAssertEqual(clock.remaining, 270)
+        clock.stop()
+        XCTAssertFalse(clock.active)
+        XCTAssertFalse(clock.running)
+        XCTAssertEqual(clock.remaining, 300)
+        clock.start(now: now)
+        clock.tick(now: now.addingTimeInterval(301))
+        XCTAssertTrue(clock.finished)
+        clock.start(now: now.addingTimeInterval(400))
+        XCTAssertEqual(clock.remaining, 300)
     }
     func testEarbudBatteryParsing() {
         let data = Data("""

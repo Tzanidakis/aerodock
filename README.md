@@ -105,3 +105,7 @@ The compact island remains 360 × 52 points. Opening the full AeroDock uses the 
 ### 0.7.1
 
 The camera mirror now applies horizontal mirroring after the camera session starts. A white ring lights up when the central camera image stays dim; the lightbulb button overrides it. The light stays on until dismissed to avoid flicker. All brightness analysis stays on the Mac and no frames are saved. Hover reveals only the compact dock; click the title to expand it.
+
+### 0.7.2
+
+Active focus sessions show a countdown, pause/resume, and stop controls directly in the compact dock. Paused sessions keep their controls visible. Stop restores the selected 5-, 25-, or 50-minute duration. The focus page uses rounded system numerals, a segmented duration picker, circular compact controls, and capsule buttons, with a subtle material background throughout the dock.
