@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var visibility = VisibilityState()
     private var monitor: Timer?
     private let earbuds = EarbudMonitor()
+    private let systemLevels = SystemLevelMonitor()
     private var earbudNoticeUntil = Date.distantPast
     private var lastRefresh = Date.distantPast
     private var lastCalendarRefresh = Date.distantPast
@@ -82,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         earbuds.start()
+        systemLevels.start()
         monitor = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }

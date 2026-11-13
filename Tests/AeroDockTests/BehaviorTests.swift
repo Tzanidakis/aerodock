@@ -11,6 +11,7 @@ struct BehaviorTests {
         tests.testFocusStopRestoresSelectedDuration()
         tests.testCustomFocusDuration()
         tests.testTimedLyricsFollowPlayback()
+        tests.testLevelChanges()
         tests.testMirrorLightHysteresis()
         tests.testLyricsAvailability()
         tests.testEarbudBatteryParsing()
@@ -28,7 +29,7 @@ struct BehaviorTests {
         tests.testPresentationDoesNotSkipAfterSleep()
         tests.testDeletedRecordingsDisappear()
         tests.testActivityTucksAwayAndReveals()
-        print("20 behavior, artwork, presentation and recording tests passed")
+        print("21 behavior, artwork, presentation and recording tests passed")
     }
     func testFocusStopRestoresSelectedDuration() {
         var clock = FocusClock()
@@ -76,6 +77,19 @@ struct BehaviorTests {
         XCTAssertEqual(TimedLyric.current(in: lines, at: 11), 0)
         XCTAssertEqual(lines[3].time, 60.25)
         XCTAssertTrue(TimedLyric.parse(nil).isEmpty)
+    }
+    func testLevelChanges() {
+        var tracker = LevelChangeTracker()
+        XCTAssertTrue(tracker.update(key: "volume", value: 0.5) == nil)
+        XCTAssertTrue(tracker.update(key: "volume", value: 0.501) == nil)
+        XCTAssertEqual(tracker.update(key: "volume", value: 0.6), 60)
+        XCTAssertEqual(tracker.update(key: "volume", value: 0), 0)
+        XCTAssertTrue(tracker.update(key: "brightness", value: 0.4) == nil)
+        XCTAssertEqual(tracker.update(key: "brightness", value: 0.7), 70)
+        XCTAssertTrue(tracker.update(key: "volume", value: nil) == nil)
+        XCTAssertTrue(tracker.update(key: "volume", value: 0.8) == nil)
+        XCTAssertEqual(tracker.update(key: "volume", value: 2), 100)
+        XCTAssertTrue(tracker.update(key: "volume", value: .nan) == nil)
     }
     func testMirrorLightHysteresis() {
         var state = MirrorLightState()

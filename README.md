@@ -143,3 +143,7 @@ Closing the mirror restores the dock's previous compact or expanded size. Music 
 ### 0.8.2
 
 Focus uses a smaller timer, compact action buttons, and tighter spacing so the controls fit more comfortably in the dock.
+
+## 0.9.0
+
+Volume and display-brightness changes show slim vertical indicators on the right edge, with a percentage and speaker/sun icon. They disappear after 1.4 seconds and respect Reduce Motion. Monitoring reads actual levels every 100 ms without intercepting keyboard input or changing settings. Volume uses the screen under the pointer; brightness appears on the affected display. Both indicators can appear together in separate lanes. macOS may also show its own indicators. Brightness requires a display supported by macOS DisplayServices; fixed-volume audio outputs and unsupported displays do not show fabricated levels.
